@@ -1,0 +1,1 @@
+-- this file for zig-lamp command support
