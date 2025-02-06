@@ -26,21 +26,22 @@ end
 
 --- @param sub_cmd subCmd[]
 --- @param cmds string[]
-local function get_command_meta(sub_cmd, cmds)
+--- @param _index number
+local function get_command_meta(sub_cmd, cmds, _index)
     local _cmd = cmds[1]
     for _, ele in pairs(sub_cmd) do
         if ele.cmd and ele.cmd == _cmd then
             if #cmds == 1 then
-                return ele, true
+                return ele, 0
             end
             if vim.tbl_isempty(ele.sub) then
-                return ele, false
+                return ele, _index
             end
             table.remove(cmds, 1)
-            return get_command_meta(ele.sub, cmds)
+            return get_command_meta(ele.sub, cmds, _index + 1)
         end
     end
-    return nil, false
+    return nil, -1
 end
 
 --- @param cmds string[]
@@ -126,8 +127,8 @@ local complete_command = function(arglead, cmdline, cursorpos)
     local last_arg = args[#args]
     table.remove(args)
 
-    local _sub_cmd, meta_result = get_command_meta(command.sub, args)
-    if not meta_result or not _sub_cmd then
+    local _sub_cmd, meta_result = get_command_meta(command.sub, args, 1)
+    if meta_result ~= 0 or not _sub_cmd then
         return {}
     end
 
