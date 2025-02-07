@@ -10,7 +10,7 @@ local command = {
     sub = {},
 }
 
---- @alias cmdCb fun(param:string)|nil
+--- @alias cmdCb fun(param:string[])|nil
 
 --- @class subCmd
 --- @field cmd string|nil
@@ -24,29 +24,52 @@ local function create_subCmd(cmd, cb)
     return { cmd = cmd, cb = cb, sub = {} }
 end
 
---- @param sub_cmd subCmd[]
---- @param cmds string[]
---- @param _index number
-local function get_command_meta(sub_cmd, cmds, _index)
-    local _cmd = cmds[1]
-    for _, ele in pairs(sub_cmd) do
-        if ele.cmd and ele.cmd == _cmd then
-            if #cmds == 1 then
-                return ele, 0
+--- @param cmds string[] note: this function will modify cmds
+--- @return subCmd|nil
+--- @return number -2 is no cmds, -1 is cmds not exist, 0 is just ok, >0 is too long
+local function get_command(cmds)
+    if #cmds == 0 then
+        return command, -2
+    end
+    --- @param __sub_cmd subCmd
+    --- @param __cmds string[]
+    --- @param __index number
+    local function __tmp(__sub_cmd, __cmds, __index)
+        local _cmd = __cmds[1]
+        for _, ele in pairs(__sub_cmd.sub) do
+            if ele.cmd and ele.cmd == _cmd then
+                if #__cmds == 1 then
+                    return ele, 0
+                end
+                if vim.tbl_isempty(ele.sub) then
+                    return ele, __index
+                end
+                table.remove(__cmds, 1)
+                return __tmp(ele, __cmds, __index + 1)
             end
-            if vim.tbl_isempty(ele.sub) then
-                return ele, _index
-            end
-            table.remove(cmds, 1)
-            return get_command_meta(ele.sub, cmds, _index + 1)
+        end
+        return nil, -1
+    end
+
+    return __tmp(command, cmds, 1)
+end
+
+--- @param cmd subCmd
+--- @return string[]
+local function get_cmd_keys(cmd)
+    --- @type string[]
+    local __res = {}
+    for _, ele in pairs(cmd.sub) do
+        if ele.cmd then
+            table.insert(__res, ele.cmd)
         end
     end
-    return nil, -1
+    return __res
 end
 
 --- @param cmds string[]
 --- @param cb cmdCb
-function M.set_command_meta(cmds, cb)
+function M.set_command(cmds, cb)
     --- @type subCmd[]
     local _sub_cmd = command.sub
     for _index, _cmd in pairs(cmds) do
@@ -90,51 +113,31 @@ function M.delete_command(cmds)
     end
 end
 
---- @param cmd subCmd
---- @return string[]
-local function get_cmd_keys(cmd)
-    --- @type string[]
-    local __res = {}
-    for _, ele in pairs(cmd.sub) do
-        if ele.cmd then
-            table.insert(__res, ele.cmd)
-        end
-    end
-    return __res
-end
-
-M.set_command_meta({ "first", "second" }, function()
+-- TODO: remove this
+M.set_command({ "first", "second" }, function(params)
     print("hello")
 end)
-
--- set_command_meta({ "a", "b", "c" }, function()
---     print("hello")
--- end)
---
--- set_command_meta({ "a", "b", "a" }, function()
---     print("aaaa")
--- end)
---
--- delete_command_meta({ "a", "b", "c" })
 
 local complete_command = function(arglead, cmdline, cursorpos)
     local args = fn.split(cmdline)
     table.remove(args, 1)
+
+    local _sub_cmd, meta_result = get_command(args)
+    if meta_result == -1 or meta_result > 1 or not _sub_cmd then
+        return {}
+    end
+
+    local candidates = get_cmd_keys(_sub_cmd)
     if #args == 0 then
-        return get_cmd_keys(command)
+        return candidates
     end
 
     local last_arg = args[#args]
     table.remove(args)
 
-    local _sub_cmd, meta_result = get_command_meta(command.sub, args, 1)
-    if meta_result ~= 0 or not _sub_cmd then
-        return {}
-    end
-
     --- @type string[]
     local _result = {}
-    local candidates = get_cmd_keys(_sub_cmd)
+
     for _, candidate in ipairs(candidates) do
         if candidate:find("^" .. last_arg) then
             table.insert(_result, candidate)
@@ -142,10 +145,31 @@ local complete_command = function(arglead, cmdline, cursorpos)
     end
 
     if #_result == 0 then
-        print(vim.inspect(candidates))
         return candidates
     end
     return _result
+end
+
+--- @param info commandCallback
+local function handle_command(info)
+    local _tbl_1 = vim.deepcopy(info.fargs)
+    local _tbl_2 = vim.deepcopy(info.fargs)
+    local _sub_cmd, meta_result = get_command(_tbl_1)
+    if meta_result == -1 then
+        print("not exist function")
+        return
+    end
+
+    if meta_result > 0 then
+        while meta_result > 0 do
+            table.remove(_tbl_2, 1)
+            meta_result = meta_result - 1
+        end
+    end
+    if _sub_cmd and _sub_cmd.cb then
+        _sub_cmd.cb(_tbl_2)
+    end
+    return
 end
 
 --- @class commandCallback
@@ -161,18 +185,13 @@ end
 --- @field mods string
 --- @field smods table
 
-function M.create_command()
-    api.nvim_create_user_command(
-        command.cmd,
-        --- @param info commandCallback
-        function(info) end,
-        {
-            range = true,
-            nargs = "*",
-            desc = "Command for zig-lamp",
-            complete = complete_command,
-        }
-    )
+function M.setup_command()
+    api.nvim_create_user_command(command.cmd, handle_command, {
+        range = true,
+        nargs = "*",
+        desc = "Command for zig-lamp",
+        complete = complete_command,
+    })
 end
 
 return M

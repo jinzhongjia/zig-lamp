@@ -4,7 +4,7 @@ local M = {}
 
 M.setup = function()
 
-command.create_command()
+command.setup_command()
 end
 
 return M
