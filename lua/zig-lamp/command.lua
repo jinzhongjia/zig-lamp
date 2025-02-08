@@ -67,9 +67,10 @@ local function get_cmd_keys(cmd)
     return __res
 end
 
---- @param cmds string[]
 --- @param cb cmdCb
-function M.set_command(cmds, cb)
+--- @param ...string
+function M.set_command(cb, ...)
+    local cmds = { ... }
     --- @type subCmd[]
     local _sub_cmd = command.sub
     for _index, _cmd in pairs(cmds) do
@@ -112,11 +113,6 @@ function M.delete_command(cmds)
         end
     end
 end
-
--- TODO: remove this
-M.set_command({ "first", "second" }, function(params)
-    print("hello")
-end)
 
 local complete_command = function(arglead, cmdline, cursorpos)
     local args = fn.split(cmdline)
