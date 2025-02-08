@@ -1,3 +1,5 @@
+local NuiLine = require("nui.line")
+local NuiText = require("nui.text")
 local Popup = require("nui.popup")
 local event = require("nui.utils.autocmd").event
 local a = require("plenary.async")
@@ -15,10 +17,15 @@ elseif vim.fn.has("unix") == 1 then
     M.sys = "linux"
 end
 
---- @param path string
+function M.mkdir(_path)
+    vim.fn.mkdir(_path, "p")
+end
+
+--- read file through path
+--- @param _path string
 --- @return string
-function M.read_file(path)
-    local err, fd = a.uv.fs_open(path, "r", 438)
+function M.read_file(_path)
+    local err, fd = a.uv.fs_open(_path, "r", 438)
     assert(not err, err)
 
     ---@diagnostic disable-next-line: redefined-local
@@ -36,15 +43,18 @@ function M.read_file(path)
     return data
 end
 
-function M.write_file(path, content)
-    local err, fd = a.uv.fs_open(path, "w", 438)
+-- write file through path
+--- @param _path string
+---@param content string
+function M.write_file(_path, content)
+    local err, fd = a.uv.fs_open(_path, "w", 438)
     assert(not err, err)
 
-    ---@diagnostic disable-next-line: redefined-local
+    ---@diagnostic disable-next-line: redefined-local, unused-local
     local err, stat = a.uv.fs_fstat(fd)
     assert(not err, err)
 
-    ---@diagnostic disable-next-line: redefined-local
+    ---@diagnostic disable-next-line: redefined-local, unused-local
     local err, stat = a.uv.fs_write(fd, content)
     assert(not err, err)
 
@@ -53,10 +63,22 @@ function M.write_file(path, content)
     assert(not err, err)
 end
 
-function M.display(content)
+-- display something with nui
+--- @param content (string[]|string)[]
+--- @param width string|nil
+--- @param height string|nil
+function M.display(content, width, height)
     local bufnr = vim.api.nvim_create_buf(false, true)
-    ---@diagnostic disable-next-line: param-type-mismatch
-    vim.api.nvim_buf_set_lines(bufnr, 0, -1, true, content)
+
+    for _index, _tmp in pairs(content) do
+        local line = NuiLine()
+        if type(_tmp) == "string" then
+            line:append(_tmp)
+        else
+            line:append(_tmp[1], _tmp[2] or nil)
+        end
+        line:render(bufnr, -1, _index)
+    end
 
     local popup = Popup({
         enter = true,
@@ -64,10 +86,10 @@ function M.display(content)
         border = {
             style = "rounded",
         },
-        position = "0%",
+        position = "50%",
         size = {
-            width = "100%",
-            height = "100%",
+            width = width or "100%",
+            height = height or "100%",
         },
         bufnr = bufnr,
     })

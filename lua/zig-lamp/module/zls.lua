@@ -1,7 +1,9 @@
 local a = require("plenary.async")
-local command = require("zig-lamp.command")
+local cmd = require("zig-lamp.cmd")
+local config = require("zig-lamp.config")
 local curl = require("plenary.curl")
 local job = require("plenary.job")
+local path = require("plenary.path")
 local util = require("zig-lamp.util")
 local zig = require("zig-lamp.module.zig")
 
@@ -10,7 +12,84 @@ local zig = require("zig-lamp.module.zig")
 
 local M = {}
 
+-- zls meta info url
 local zls_meta_url = "https://releases.zigtools.org/v1/zls/select-version"
+local zls_store_path = vim.fs.joinpath(config.data_path, "zls")
+local zls_db_path = path:new(config.data_path, "zlsdb.json")
+
+--- @type { version_map: table }
+local _db = {
+    version_map = {},
+}
+
+-- get db
+local function get_db()
+    if _db then
+        return _db
+    end
+    if not zls_db_path:exists() then
+        util.mkdir(zls_db_path:parent():absolute())
+        zls_db_path:touch()
+        _db = {}
+    else
+        local content = zls_db_path:read()
+        if content ~= "" then
+            _db = vim.fn.json_decode()
+        end
+    end
+end
+
+-- Note: this is not load db from disk
+-- save db
+local function save_db()
+    -- stylua: ignore
+    if not _db then return end
+
+    if not zls_db_path:exists() then
+        util.mkdir(zls_db_path:parent():absolute())
+    end
+
+    zls_db_path:write(vim.fn.json_encode(_db), "w", 438)
+end
+
+--- @param zig_version string
+local function get_zls_verion_from_db(zig_version)
+    local db = get_db()
+    return db.version_map[zig_version]
+end
+
+--- @param zig_version string
+--- @param zls_version string
+local function set_zls_verion_to_db(zig_version, zls_version)
+    local db = get_db()
+    db.version_map[zig_version] = zls_version
+end
+
+-- this function must call in main loop
+--- @param zls_version string
+--- @param callback fun()
+local function extract_zls_for_win(zls_version, callback)
+    local src_loc = vim.fs.joinpath(config.tmp_path, zls_version)
+
+    local _p = path:new(zls_store_path, zls_version)
+    if not _p:exists() then
+        util.mkdir(_p:absolute())
+    end
+
+    local dest_loc = vim.fs.normalize(_p:absolute())
+
+    ---@diagnostic disable-next-line: missing-fields
+    local _j = job:new({
+        command = "unzip",
+        args = { "-j", src_loc, "zls.exe", "-d", dest_loc },
+        on_exit = function(...)
+            if callback then
+                callback()
+            end
+        end,
+    })
+    _j:start()
+end
 
 -- get zls version
 --- @return string
@@ -43,23 +122,46 @@ end
 --- @field message string
 
 --- @param zig_version string
---- @param callback fun(json:table|nil)
+--- @param callback fun(json:zlsMeta|zlsMetaErr|nil)
 local function get_meta_json(zig_version, callback)
     --- @param response { exit: number, status: number, headers: table, body: string }
     local function __tmp(response)
-        if response.status == 200 then
-            callback(vim.fn.json_decode(response.body))
-        else
-            callback()
+        -- stylua: ignore
+        if response.status ~= 200 then callback() return end
+
+        --- @type zlsMeta|zlsMetaErr
+        local info = vim.fn.json_decode(response.body)
+        if not info.code then
+            set_zls_verion_to_db(zig_version, info.version)
+            save_db()
         end
+        callback(info)
     end
 
     local query = { zig_version = zig_version, compatibility = "only-runtime" }
 
-    curl.get(zls_meta_url, {
-        query = query,
-        callback = vim.schedule_wrap(__tmp),
-    })
+    -- stylua: ignore
+    curl.get(zls_meta_url, { query = query, callback = vim.schedule_wrap(__tmp) })
+end
+
+-- TODO: add minisign identify support
+--
+--- @param zls_version string
+--- @param arch_info zlsMetaArchInfo
+--- @param callback fun(result: boolean)
+local function download_zls(zls_version, arch_info, callback)
+    -- check tmp path whether exist
+    local _p = path:new(config.tmp_path)
+    if not _p:exists() then
+        util.mkdir(config.tmp_path)
+    end
+
+    local loc = vim.fs.joinpath(config.tmp_path, zls_version)
+    local _tmp = function(out)
+        callback(out.status == 200)
+    end
+    -- asynchronously download
+    curl.get(arch_info.tarball, { output = loc, callback = _tmp })
 end
 
 --- @param meta zlsMeta
@@ -69,6 +171,8 @@ local function get_arch_info(meta)
     return meta[_key]
 end
 
+-- TODO: this must be removed
+--
 --- @type { command: string[], cb: cmdCb }
 local _commands = {
     {
@@ -81,21 +185,38 @@ local _commands = {
     {
         command = { "zls", "json" },
         cb = function(param)
-            local res = get_meta_json(zig.version(), function(json)
-                if json then
+            get_meta_json(zig.version(), function(json)
+                if json and not json.code then
+                    ---@diagnostic disable-next-line: param-type-mismatch
                     print(vim.inspect(get_arch_info(json)))
                 end
             end)
         end,
     },
     {
-        command = { "zls", "info" },
+        command = { "zls", "debug" },
         cb = function()
-            a.run(function()
-                -- util.write_file("C://Users/jin/Downloads/new.txt","okokok")
-                local data = util.read_file("C://Users/jin/Downloads/new.txt")
-                print(data)
-            end)
+            local zv = zig.version()
+            local callback_2 = function(info)
+                return function(result)
+                    if result then
+                        vim.schedule(function()
+                            extract_zls_for_win(info.version)
+                        end)
+                    else
+                        print("failed")
+                    end
+                end
+            end
+            local callback_1 = function(info)
+                if info and not info.code then
+                    ---@diagnostic disable-next-line: param-type-mismatch
+                    local archinfo = get_arch_info(info)
+
+                    download_zls(info.version, archinfo, callback_2(info))
+                end
+            end
+            get_meta_json(zv, callback_1)
         end,
     },
 }
@@ -103,7 +224,7 @@ local _commands = {
 function M.setup()
     -- init for commands
     for _, _ele in pairs(_commands) do
-        command.set_command(_ele.cb, unpack(_ele.command))
+        cmd.set_command(_ele.cb, unpack(_ele.command))
     end
 end
 
