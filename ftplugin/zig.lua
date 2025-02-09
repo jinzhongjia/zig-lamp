@@ -1,0 +1,1 @@
+-- this file will run when enter zig.lua
