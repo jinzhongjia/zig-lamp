@@ -236,59 +236,6 @@ local function get_arch_info(meta)
     return meta[_key]
 end
 
--- TODO: this must be removed
---
---- @type { command: string[], cb: cmdCb }
-local _commands = {
-    {
-        command = { "zls", "version" },
-        cb = function(param)
-            -- TODO: not use print
-            print(M.version())
-        end,
-    },
-    {
-        command = { "zls", "json" },
-        cb = function(param)
-            get_meta_json(zig.version(), function(json)
-                if json and not json.code then
-                    ---@diagnostic disable-next-line: param-type-mismatch
-                    print(vim.inspect(get_arch_info(json)))
-                end
-            end)
-        end,
-    },
-    {
-        command = { "zls", "debug" },
-        cb = function()
-            local zv = zig.version()
-            local callback_2 = function(info)
-                return function(result)
-                    if result then
-                        vim.schedule(function()
-                            extract_zls_for_win(info.version)
-                        end)
-                    else
-                        print("failed")
-                    end
-                end
-            end
-            --- @param info zlsMeta|zlsMetaErr|nil
-            local callback_1 = function(info)
-                if info and not info.code then
-                    ---@diagnostic disable-next-line: param-type-mismatch
-                    local archinfo = get_arch_info(info)
-                    -- remove_zls(info.version)
-
-                    download_zls(info.version, archinfo, callback_2(info))
-                end
-            end
-            -- get_meta_json(zv, callback_1)
-            -- print(vim.inspect(M.local_zls_lists()))
-        end,
-    },
-}
-
 -- callback for zls install
 --- @param params string[]
 local function cb_zls_install(params)
@@ -304,7 +251,7 @@ local function cb_zls_install(params)
         goto l1
     end
     -- TODO: we need to not use print
-    print(string.format("zls version %s is already installed", db_zls_version))
+    util.Info(string.format("zls version %s is already installed", db_zls_version))
 
     ::l1::
     -- run after extract zls, check zls version
@@ -314,7 +261,7 @@ local function cb_zls_install(params)
             if verify_local_zls_version(info.version) then
                 print("success to install zls")
             else
-                print("failed to install zls")
+                util.Error("failed to install zls")
             end
         end
     end
@@ -357,10 +304,6 @@ end
 
 function M.setup()
     set_command()
-    -- init for commands
-    -- for _, _ele in pairs(_commands) do
-    --     cmd.set_command(_ele.cb, unpack(_ele.command))
-    -- end
 end
 
 return M

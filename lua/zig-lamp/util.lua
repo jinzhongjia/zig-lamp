@@ -110,4 +110,28 @@ function M.display(content, width, height)
     end)
 end
 
+-- this is public notify message prefix
+local _notify_public_message = "[ZigLamp]: "
+
+-- Error notify
+--- @param message string
+M.Error = function(message)
+    -- stylua: ignore
+    vim.api.nvim_notify(_notify_public_message .. message, vim.log.levels.ERROR, {})
+end
+
+-- Info notify
+--- @param message string
+M.Info = function(message)
+    -- stylua: ignore
+    vim.api.nvim_notify(_notify_public_message .. message, vim.log.levels.INFO, {})
+end
+
+-- Warn notify
+--- @param message string
+M.Warn = function(message)
+    -- stylua: ignore
+    vim.api.nvim_notify(_notify_public_message .. message, vim.log.levels.WARN, {})
+end
+
 return M
