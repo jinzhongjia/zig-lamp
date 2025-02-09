@@ -150,8 +150,6 @@ local complete_command = function(_, cmdline, _)
     --- @type string[]
     local _result = {}
 
-    print(vim.inspect(candidates))
-
     for _, candidate in ipairs(candidates) do
         if candidate:find("^" .. last_arg) then
             table.insert(_result, candidate)

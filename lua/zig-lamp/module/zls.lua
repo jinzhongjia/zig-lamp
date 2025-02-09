@@ -6,11 +6,20 @@ local path = require("plenary.path")
 local scan = require("plenary.scandir")
 local util = require("zig-lamp.util")
 local zig = require("zig-lamp.module.zig")
+local M = {}
 
 -- decompress zig and get specific file from zip with powershell 5
 -- [[Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = [System.IO.Compression.ZipFile]::OpenRead("C:\Users\jin\Downloads\zlsl.zip"); $entry = $zip.Entries | Where-Object { $_.FullName -eq "zls.exe" }; if ($entry) { $stream = $entry.Open(); $fileStream = [System.IO.File]::OpenWrite("C:\Users\jin\Downloads\zls.exe"); $stream.CopyTo($fileStream); $fileStream.Close(); $stream.Close() }; $zip.Dispose()]]
 
-local M = {}
+local lsp_is_initialized = false
+
+function M.lsp_if_inited()
+    return lsp_is_initialized
+end
+
+function M.lsp_inited()
+    lsp_is_initialized = true
+end
 
 -- zls meta info url
 local zls_meta_url = "https://releases.zigtools.org/v1/zls/select-version"
@@ -19,6 +28,15 @@ local zls_db_path = path:new(config.data_path, "zlsdb.json")
 
 --- @type { version_map: table }
 local _db = nil
+
+-- get zls file name
+local function get_filename()
+    if util.sys == "windows" then
+        return "zls.exe"
+    else
+        return "zls"
+    end
+end
 
 -- get db
 local function get_db()
@@ -64,6 +82,7 @@ local function save_db()
 end
 
 --- @param zig_version string
+--- @return string|nil
 function M.get_zls_verion_from_db(zig_version)
     local db = get_db()
     return db.version_map[zig_version]
@@ -111,7 +130,7 @@ local function extract_zls_for_win(zls_version, callback)
     ---@diagnostic disable-next-line: missing-fields
     local _j = job:new({
         command = "unzip",
-        args = { "-j", src_loc, "zls.exe", "-d", dest_loc },
+        args = { "-j", src_loc, get_filename(), "-d", dest_loc },
         on_exit = function(_, code, signal)
             if code ~= 0 then
                 util.error("failed to extract zls", code, signal)
@@ -129,7 +148,7 @@ end
 --- @param zls_version string
 --- @return boolean|nil
 local function verify_local_zls_version(zls_version)
-    local _p = path:new(zls_store_path, zls_version, "zls.exe")
+    local _p = path:new(zls_store_path, zls_version, get_filename())
     if not _p:exists() then
         return nil
     end
@@ -145,6 +164,28 @@ local function verify_local_zls_version(zls_version)
     end
 
     return false
+end
+
+function M.get_zls_path()
+    -- get zig version
+    local zig_version = zig.version()
+    if not zig_version then
+        return nil
+    end
+
+    -- get zls version from db
+    local zls_version = M.get_zls_verion_from_db(zig_version)
+    if not zls_version then
+        return nil
+    end
+
+    -- detect zls whether exist
+    local zls_path = path:new(zls_store_path, zls_version, get_filename())
+    if not zls_path:exists() then
+        return nil
+    end
+
+    return vim.fs.normalize(zls_path:absolute())
 end
 
 -- get zls version
@@ -272,14 +313,18 @@ local function cb_zls_install(params)
         util.Warn("not found zig")
         return
     end
+    util.Info("get zig version: " .. zig_version)
     local db_zls_version = M.get_zls_verion_from_db(zig_version)
     if not db_zls_version then
+        util.Info("not found zls version in db, try to get meta json")
         goto l1
     end
+    util.info("found zls version in db: " .. db_zls_version)
     if not verify_local_zls_version(db_zls_version) then
         -- when zls version is not correct
         db_delete_with_zig_version(zig_version)
         remove_zls(db_zls_version)
+        util.Info("zls version verify failed, try to get meta json")
         goto l1
     end
 
@@ -288,13 +333,44 @@ local function cb_zls_install(params)
     )
 
     ::l1::
+
+    --- @param zls_version string
+    local function after_install(zls_version)
+        -- stylua: ignore
+        if M.lsp_if_inited() then return end
+
+        -- get zls path
+        local _p = path:new(zls_store_path, zls_version, get_filename())
+        local zls_path = vim.fs.normalize(_p:absolute())
+
+        -- set zls path to lsp
+        local lspconfig = require("lspconfig")
+        -- TODO: zls lsp opts
+        lspconfig.zls.setup({ cmd = { zls_path } })
+
+        M.lsp_inited()
+
+        local lspconfig_configs = require("lspconfig.configs")
+        local zls_config = lspconfig_configs.zls
+
+        local buf_lists = vim.api.nvim_list_bufs()
+        for _, bufnr in pairs(buf_lists) do
+            -- stylua: ignore
+            local filetype = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
+            if filetype == "zig" then
+                zls_config.launch(bufnr)
+            end
+        end
+    end
+
     -- run after extract zls, check zls version
     --- @param info zlsMeta
-    local function cb_3(info)
+    local function after_extract(info)
         return vim.schedule_wrap(function()
             remove_zls_tmp(info.version)
             if verify_local_zls_version(info.version) then
-                util.Info("success to install zls")
+                util.Info("success to install zls version " .. info.version)
+                after_install(info.version)
             else
                 util.Error("failed to install zls")
             end
@@ -303,13 +379,18 @@ local function cb_zls_install(params)
 
     -- run after download zls, extract zls
     --- @param info zlsMeta
-    local function cb_2(info)
+    local function after_download(info)
         --- @param result boolean
         --- @param ctx { exit: number, status: number, headers: table, body: string}
         return function(result, ctx)
             if result then
                 vim.schedule(function()
-                    extract_zls_for_win(info.version, cb_3(info))
+                    util.Info("try to extract zls")
+                    if util.sys == "windows" then
+                        extract_zls_for_win(info.version, after_extract(info))
+                    else
+                        util.Error("other platform is not support")
+                    end
                 end)
             else
                 util.Error("failed to download zls, status: " .. ctx.status)
@@ -319,7 +400,7 @@ local function cb_zls_install(params)
 
     -- run aftet get meta json
     --- @param info zlsMeta|zlsMetaErr|nil
-    local function cb_1(info)
+    local function after_meta(info)
         -- when info is nil, network error
         -- when info.code is 0, Unsupported
         -- when info.code is 1, Unsupported Release Cycle
@@ -345,13 +426,15 @@ local function cb_zls_install(params)
         ---@diagnostic disable-next-line: param-type-mismatch
         local archinfo = get_arch_info(info)
 
+        util.Info("try to download zls")
         -- download zls
         ---@diagnostic disable-next-line: param-type-mismatch
-        download_zls(info.version, archinfo, cb_2(info))
+        download_zls(info.version, archinfo, after_download(info))
     end
 
+    util.Info("try to get zls meta json")
     -- get meta json
-    get_meta_json(zig_version, cb_1)
+    get_meta_json(zig_version, after_meta)
 end
 
 --- @param params string[]
@@ -369,6 +452,8 @@ local function cb_zls_uninstall(params)
     end
 
     local zls_version = params[1]
+
+    -- TODO: before uninstall, we need to stop zls server!!!!
 
     db_delete_with_zls_version(zls_version)
     remove_zls(zls_version)
