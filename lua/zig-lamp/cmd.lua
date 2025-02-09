@@ -8,20 +8,25 @@ local command = {
     cmd = "ZigLamp",
     cb = nil,
     sub = {},
+    complete = nil,
 }
 
 --- @alias cmdCb fun(param:string[])|nil
+--- @alias cmdComplete (fun():string[])|string[]|nil
 
 --- @class subCmd
 --- @field cmd string|nil
 --- @field cb cmdCb|nil
 --- @field sub subCmd[]|nil
+--- @field complete cmdComplete|nil
 
 --- @param cmd string|nil
 --- @param cb cmdCb|nil
+--- @param complete cmdComplete|nil
 --- @return subCmd
-local function create_subCmd(cmd, cb)
-    return { cmd = cmd, cb = cb, sub = {} }
+local function create_subCmd(cmd, cb, complete)
+    --- @type subCmd
+    return { cmd = cmd, cb = cb, sub = {}, complete = complete }
 end
 
 --- @param cmds string[] note: this function will modify cmds
@@ -56,7 +61,7 @@ end
 
 --- @param cmd subCmd
 --- @return string[]
-local function get_cmd_keys(cmd)
+local function get_cmd_after_keys(cmd)
     --- @type string[]
     local __res = {}
     for _, ele in pairs(cmd.sub) do
@@ -64,12 +69,22 @@ local function get_cmd_keys(cmd)
             table.insert(__res, ele.cmd)
         end
     end
+    if type(cmd.complete) == "function" then
+        local _complete = cmd.complete()
+        table.insert(__res, _complete)
+    elseif type(cmd.complete) == "table" then
+        ---@diagnostic disable-next-line: param-type-mismatch
+        for _, _complete in pairs(cmd.complete) do
+            table.insert(__res, _complete)
+        end
+    end
     return __res
 end
 
 --- @param cb cmdCb
+--- @param complete cmdComplete
 --- @param ...string
-function M.set_command(cb, ...)
+function M.set_command(cb, complete, ...)
     local cmds = { ... }
     --- @type subCmd[]
     local _sub_cmd = command.sub
@@ -84,7 +99,7 @@ function M.set_command(cb, ...)
             end
         end
         if _index == #cmds then
-            table.insert(_sub_cmd, create_subCmd(_cmd, cb))
+            table.insert(_sub_cmd, create_subCmd(_cmd, cb, complete))
         else
             table.insert(_sub_cmd, create_subCmd(_cmd))
         end
@@ -105,7 +120,6 @@ function M.delete_command(cmds)
             if ele_sub_cmd.cmd and ele_sub_cmd.cmd == _cmd then
                 if _index == #cmds then
                     table.remove(_sub_cmd, _sub_cmd_index)
-                    print("log")
                     return
                 end
                 _sub_cmd = ele_sub_cmd.sub
@@ -114,7 +128,7 @@ function M.delete_command(cmds)
     end
 end
 
-local complete_command = function(arglead, cmdline, cursorpos)
+local complete_command = function(_, cmdline, _)
     local args = fn.split(cmdline)
     table.remove(args, 1)
 
@@ -123,7 +137,7 @@ local complete_command = function(arglead, cmdline, cursorpos)
         return {}
     end
 
-    local candidates = get_cmd_keys(_sub_cmd)
+    local candidates = get_cmd_after_keys(_sub_cmd)
     if #args == 0 then
         return candidates
     end
@@ -152,6 +166,7 @@ local function handle_command(info)
     local _tbl_2 = vim.deepcopy(info.fargs)
     local _sub_cmd, meta_result = get_command(_tbl_1)
     if meta_result == -1 then
+        -- TODO: note use print
         print("not exist function")
         return
     end
@@ -165,7 +180,6 @@ local function handle_command(info)
     if _sub_cmd and _sub_cmd.cb then
         _sub_cmd.cb(_tbl_2)
     end
-    return
 end
 
 --- @class commandCallback

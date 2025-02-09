@@ -16,7 +16,7 @@ function M.setup()
     cmd.set_command(function(param)
         -- TODO: not use print
         print(M.version())
-    end, "zig", "version")
+    end, nil, "zig", "version")
 end
 
 return M
