@@ -181,6 +181,7 @@ end
 --- @field mods string
 --- @field smods table
 
+-- setup command, must be called by zig-lamp/init.lua
 function M.setup_command()
     api.nvim_create_user_command(command.cmd, handle_command, {
         range = true,
