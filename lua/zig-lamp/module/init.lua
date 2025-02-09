@@ -20,12 +20,14 @@ local function info_cb()
         "version: " .. config.version,
         "",
         { "Zig info:", "DiagnosticOk" },
-        "version: " .. zig_version,
+        "version: " .. (zig_version or "not found"),
         "",
         { "Zls info:", "DiagnosticOk" },
         "system version: " .. zls_version,
-        "local versions:",
     }
+    if #list > 0 then
+        table.insert(content, "local versions:")
+    end
     for _, val in pairs(list) do
         table.insert(content, "  - " .. val)
     end

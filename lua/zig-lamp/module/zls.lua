@@ -1,4 +1,3 @@
-local a = require("plenary.async")
 local cmd = require("zig-lamp.cmd")
 local config = require("zig-lamp.config")
 local curl = require("plenary.curl")
@@ -65,7 +64,7 @@ local function save_db()
 end
 
 --- @param zig_version string
-local function get_zls_verion_from_db(zig_version)
+function M.get_zls_verion_from_db(zig_version)
     local db = get_db()
     return db.version_map[zig_version]
 end
@@ -85,6 +84,17 @@ local function db_delete_with_zig_version(zig_version)
     db.version_map[zig_version] = nil
 end
 
+-- please call save db after using this function
+--- @param zls_version string
+local function db_delete_with_zls_version(zls_version)
+    local db = get_db()
+    for _zig, _zls in pairs(db.version_map) do
+        if _zls == zls_version then
+            db.version_map[_zig] = nil
+        end
+    end
+end
+
 -- this function must call in main loop
 --- @param zls_version string
 --- @param callback? fun(zls_version:string|nil,err_msg:string|nil)
@@ -102,8 +112,11 @@ local function extract_zls_for_win(zls_version, callback)
     local _j = job:new({
         command = "unzip",
         args = { "-j", src_loc, "zls.exe", "-d", dest_loc },
-        on_exit = function(...)
-            -- TODO: handle this when error
+        on_exit = function(_, code, signal)
+            if code ~= 0 then
+                util.error("failed to extract zls", code, signal)
+                return
+            end
             if callback then
                 callback()
             end
@@ -161,9 +174,11 @@ end
 --- @field ["x86_64-windows"] zlsMetaArchInfo
 
 --- @class zlsMetaErr
---- @field code number
+--- @field code 0|1|2|3
 --- @field message string
 
+-- this function api is here:
+-- https://github.com/zigtools/release-worker#unsupported-release-cycle
 --- @param zig_version string
 --- @param callback fun(json:zlsMeta|zlsMetaErr|nil)
 local function get_meta_json(zig_version, callback)
@@ -191,7 +206,7 @@ end
 --
 --- @param zls_version string
 --- @param arch_info zlsMetaArchInfo
---- @param callback fun(result: boolean)
+--- @param callback fun(result: boolean, ctx: { exit: number, status: number, headers: table, body: string})
 local function download_zls(zls_version, arch_info, callback)
     -- check tmp path whether exist
     local _p = path:new(config.tmp_path)
@@ -201,7 +216,7 @@ local function download_zls(zls_version, arch_info, callback)
 
     local loc = vim.fs.joinpath(config.tmp_path, zls_version)
     local _tmp = function(out)
-        callback(out.status == 200)
+        callback(out.status == 200, out)
     end
     -- asynchronously download
     curl.get(arch_info.tarball, { output = loc, callback = _tmp })
@@ -220,6 +235,10 @@ end
 --- @return string[]
 function M.local_zls_lists()
     local res = {}
+    if not path:new(zls_store_path):exists() then
+        return res
+    end
+
     local _s = scan.scan_dir(zls_store_path, { only_dirs = true })
     for _, value in pairs(_s) do
         local _pp = vim.fn.fnamemodify(value, ":t")
@@ -236,11 +255,24 @@ local function get_arch_info(meta)
     return meta[_key]
 end
 
+--- @param zls_version string
+local function remove_zls_tmp(zls_version)
+    local _p = path:new(config.tmp_path, zls_version)
+    if _p:exists() then
+        _p:rm()
+    end
+end
+
 -- callback for zls install
 --- @param params string[]
+--- @diagnostic disable-next-line: unused-local
 local function cb_zls_install(params)
     local zig_version = zig.version()
-    local db_zls_version = get_zls_verion_from_db(zig_version)
+    if not zig_version then
+        util.Warn("not found zig")
+        return
+    end
+    local db_zls_version = M.get_zls_verion_from_db(zig_version)
     if not db_zls_version then
         goto l1
     end
@@ -250,56 +282,110 @@ local function cb_zls_install(params)
         remove_zls(db_zls_version)
         goto l1
     end
-    -- TODO: we need to not use print
-    util.Info(string.format("zls version %s is already installed", db_zls_version))
+
+    util.Info(
+        string.format("zls version %s is already installed", db_zls_version)
+    )
 
     ::l1::
     -- run after extract zls, check zls version
     --- @param info zlsMeta
     local function cb_3(info)
-        return function()
+        return vim.schedule_wrap(function()
+            remove_zls_tmp(info.version)
             if verify_local_zls_version(info.version) then
-                print("success to install zls")
+                util.Info("success to install zls")
             else
                 util.Error("failed to install zls")
             end
-        end
+        end)
     end
 
     -- run after download zls, extract zls
     --- @param info zlsMeta
-    local cb_2 = function(info)
-        return function(result)
+    local function cb_2(info)
+        --- @param result boolean
+        --- @param ctx { exit: number, status: number, headers: table, body: string}
+        return function(result, ctx)
             if result then
                 vim.schedule(function()
-                    extract_zls_for_win(info.version, cb_3)
+                    extract_zls_for_win(info.version, cb_3(info))
                 end)
             else
-                -- TODO: handle this when result is false
+                util.Error("failed to download zls, status: " .. ctx.status)
             end
         end
     end
 
     -- run aftet get meta json
     --- @param info zlsMeta|zlsMetaErr|nil
-    local cb_1 = function(info)
-        -- TODO: handle this when err or nil
-        --
-        if info and not info.code then
-            ---@diagnostic disable-next-line: param-type-mismatch
-            local archinfo = get_arch_info(info)
-
-            -- download zls
-            ---@diagnostic disable-next-line: param-type-mismatch
-            download_zls(info.version, archinfo, cb_2(info))
+    local function cb_1(info)
+        -- when info is nil, network error
+        -- when info.code is 0, Unsupported
+        -- when info.code is 1, Unsupported Release Cycle
+        -- when info.code is 2, Incompatible development build
+        -- when info.code is 3, Incompatible tagged release
+        if info == nil then
+            util.Error("failed to get zls meta json, please check your network")
+            return
+        elseif info.code == 0 then
+            util.Warn("current zig version is not supported by zls")
+            return
+        elseif info.code == 1 then
+            util.Warn("Unsupported Release Cycle, zls hasn't updated yet")
+            return
+        elseif info.code == 2 then
+            util.Warn("Incompatible development build, non-zls compatible")
+            return
+        elseif info.code == 3 then
+            util.Warn("Incompatible tagged release, non-zls compatible")
+            return
         end
+
+        ---@diagnostic disable-next-line: param-type-mismatch
+        local archinfo = get_arch_info(info)
+
+        -- download zls
+        ---@diagnostic disable-next-line: param-type-mismatch
+        download_zls(info.version, archinfo, cb_2(info))
     end
 
+    -- get meta json
     get_meta_json(zig_version, cb_1)
 end
 
+--- @param params string[]
+--- @diagnostic disable-next-line: unused-local
+local function cb_zls_uninstall(params)
+    if #params == 0 then
+        util.Info("please input zls version")
+        return
+    end
+
+    local lists = M.local_zls_lists()
+    if not vim.tbl_contains(lists, params[1]) then
+        util.Info("please input correct zls version")
+        return
+    end
+
+    local zls_version = params[1]
+
+    db_delete_with_zls_version(zls_version)
+    remove_zls(zls_version)
+    save_db()
+end
+
+local function complete_zls_uninstall()
+    return M.local_zls_lists()
+end
+
+-- now, we have two commands
+-- zls install
+-- zls uninstall
 local function set_command()
     cmd.set_command(cb_zls_install, nil, "zls", "install")
+    -- stylua: ignore
+    cmd.set_command(cb_zls_uninstall, complete_zls_uninstall, "zls", "uninstall")
 end
 
 function M.setup()

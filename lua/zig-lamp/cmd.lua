@@ -71,7 +71,9 @@ local function get_cmd_after_keys(cmd)
     end
     if type(cmd.complete) == "function" then
         local _complete = cmd.complete()
-        table.insert(__res, _complete)
+        for _, __complete in pairs(_complete) do
+            table.insert(__res, __complete)
+        end
     elseif type(cmd.complete) == "table" then
         ---@diagnostic disable-next-line: param-type-mismatch
         for _, _complete in pairs(cmd.complete) do
@@ -147,6 +149,8 @@ local complete_command = function(_, cmdline, _)
 
     --- @type string[]
     local _result = {}
+
+    print(vim.inspect(candidates))
 
     for _, candidate in ipairs(candidates) do
         if candidate:find("^" .. last_arg) then
