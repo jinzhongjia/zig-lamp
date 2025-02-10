@@ -8,10 +8,18 @@ local util = require("zig-lamp.util")
 local zig = require("zig-lamp.module.zig")
 local M = {}
 
--- decompress zig and get specific file from zip with powershell 5
--- [[Add-Type -AssemblyName System.IO.Compression.FileSystem; $zip = [System.IO.Compression.ZipFile]::OpenRead("C:\Users\jin\Downloads\zlsl.zip"); $entry = $zip.Entries | Where-Object { $_.FullName -eq "zls.exe" }; if ($entry) { $stream = $entry.Open(); $fileStream = [System.IO.File]::OpenWrite("C:\Users\jin\Downloads\zls.exe"); $stream.CopyTo($fileStream); $fileStream.Close(); $stream.Close() }; $zip.Dispose()]]
-
 local lsp_is_initialized = false
+
+local current_lsp_zls_version = nil
+
+--- @param zls_version string
+function M.set_current_lsp_zls_version(zls_version)
+    current_lsp_zls_version = zls_version
+end
+
+function M.get_current_lsp_zls_version()
+    return current_lsp_zls_version
+end
 
 function M.lsp_if_inited()
     return lsp_is_initialized
@@ -166,7 +174,8 @@ local function verify_local_zls_version(zls_version)
     return false
 end
 
-function M.get_zls_path()
+--- @return string|nil
+function M.get_zls_version()
     -- get zig version
     local zig_version = zig.version()
     if not zig_version then
@@ -179,6 +188,14 @@ function M.get_zls_path()
         return nil
     end
 
+    return zls_version
+end
+
+--- @param zls_version string|nil
+function M.get_zls_path(zls_version)
+    if not zls_version then
+        return nil
+    end
     -- detect zls whether exist
     local zls_path = path:new(zls_store_path, zls_version, get_filename())
     if not zls_path:exists() then
@@ -304,6 +321,27 @@ local function remove_zls_tmp(zls_version)
     end
 end
 
+--- @param zls_version string
+--- @param zls_path string
+function M.setup_lspconfig(zls_version, zls_path)
+    local lspconfig = require("lspconfig")
+    -- TODO: zls lsp opts
+    lspconfig.zls.setup({ cmd = { zls_path } })
+
+    M.set_current_lsp_zls_version(zls_version)
+
+    M.lsp_inited()
+end
+
+-- we need setup lspconfig first
+--- @param bufnr integer|nil
+function M.launch_zls(bufnr)
+    local lspconfig_configs = require("lspconfig.configs")
+    local zls_config = lspconfig_configs.zls
+
+    zls_config.launch(bufnr)
+end
+
 -- callback for zls install
 --- @param params string[]
 --- @diagnostic disable-next-line: unused-local
@@ -319,7 +357,7 @@ local function cb_zls_install(params)
         util.Info("not found zls version in db, try to get meta json")
         goto l1
     end
-    util.info("found zls version in db: " .. db_zls_version)
+    util.Info("found zls version in db: " .. db_zls_version)
     if not verify_local_zls_version(db_zls_version) then
         -- when zls version is not correct
         db_delete_with_zig_version(zig_version)
@@ -343,22 +381,14 @@ local function cb_zls_install(params)
         local _p = path:new(zls_store_path, zls_version, get_filename())
         local zls_path = vim.fs.normalize(_p:absolute())
 
-        -- set zls path to lsp
-        local lspconfig = require("lspconfig")
-        -- TODO: zls lsp opts
-        lspconfig.zls.setup({ cmd = { zls_path } })
-
-        M.lsp_inited()
-
-        local lspconfig_configs = require("lspconfig.configs")
-        local zls_config = lspconfig_configs.zls
+        M.setup_lspconfig(zls_version, zls_path)
 
         local buf_lists = vim.api.nvim_list_bufs()
         for _, bufnr in pairs(buf_lists) do
             -- stylua: ignore
             local filetype = vim.api.nvim_get_option_value("filetype", { buf = bufnr })
             if filetype == "zig" then
-                zls_config.launch(bufnr)
+                M.launch_zls(bufnr)
             end
         end
     end
@@ -453,11 +483,23 @@ local function cb_zls_uninstall(params)
 
     local zls_version = params[1]
 
-    -- TODO: before uninstall, we need to stop zls server!!!!
+    if zls_version == M.get_current_lsp_zls_version() then
+        local zls_clients = vim.lsp.get_clients({ name = "zls" })
+        if #zls_clients > 0 then
+            -- stylua: ignore
+            util.Warn("the zls which you want to uninstall is running, please stop it first")
+            return
+        end
+    end
 
     db_delete_with_zls_version(zls_version)
     remove_zls(zls_version)
     save_db()
+
+    util.Info("success to uninstall zls version " .. zls_version)
+    if zls_version == M.get_current_lsp_zls_version() then
+        util.Warn("please restart neovim to prevent lspconfig still autostart!")
+    end
 end
 
 local function complete_zls_uninstall()

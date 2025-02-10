@@ -25,6 +25,11 @@ local function info_cb()
         { "Zls info:", "DiagnosticOk" },
         "system version: " .. zls_version,
     }
+
+    if zls.get_current_lsp_zls_version() then
+        -- stylua: ignore
+        table.insert(content, "embed lsp using version: " .. zls.get_current_lsp_zls_version())
+    end
     if #list > 0 then
         table.insert(content, "local versions:")
     end
