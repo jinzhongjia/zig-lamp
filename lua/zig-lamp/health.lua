@@ -29,17 +29,27 @@ local function check_curl()
     end
 end
 
+local function check_tar()
+    local util = require("zig-lamp.util")
+    if util.sys ~= "windows" then
+        health.start("check tar")
+        if vim.fn.executable("tar") == 1 then
+            health.ok("found tar")
+        else
+            health.error("not found tar")
+        end
+    end
+end
+
 local function check_unzip()
-    health.start("check unzip")
     local util = require("zig-lamp.util")
     if util.sys == "windows" then
+        health.start("check unzip")
         if vim.fn.executable("unzip") == 1 then
             health.ok("found unzip")
         else
             health.error("not found unzip")
         end
-    else
-        health.info("no need to use unzip")
     end
 end
 
@@ -47,6 +57,7 @@ M.check = function()
     check_zig()
     check_curl()
     check_unzip()
+    check_tar()
     check_lspconig()
 end
 
