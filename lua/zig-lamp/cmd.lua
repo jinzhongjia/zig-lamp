@@ -1,5 +1,6 @@
 -- this file for zig-lamp command support
 
+local util = require "zig-lamp.util"
 local api, fn = vim.api, vim.fn
 local M = {}
 
@@ -168,8 +169,7 @@ local function handle_command(info)
     local _tbl_2 = vim.deepcopy(info.fargs)
     local _sub_cmd, meta_result = get_command(_tbl_1)
     if meta_result == -1 then
-        -- TODO: note use print
-        print("not exist function")
+        util.Info("not exist function")
         return
     end
 

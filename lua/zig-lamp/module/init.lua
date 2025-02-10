@@ -14,6 +14,7 @@ local function info_cb()
 
     local list = zls.local_zls_lists()
 
+    -- TODO: this table should reflect
     local content = {
         { "Zig Lamp", "DiagnosticInfo" },
         "data path: " .. config.data_path,

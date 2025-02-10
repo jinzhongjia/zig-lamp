@@ -15,7 +15,7 @@ do
             return
         end
 
-        zls.setup_lspconfig(zls_version, zls_path)
+        zls.setup_lspconfig(zls_version)
     end
     if zls.get_current_lsp_zls_version() then
         zls.launch_zls()

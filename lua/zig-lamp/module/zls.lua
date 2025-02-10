@@ -125,18 +125,48 @@ local function db_delete_with_zls_version(zls_version)
     end
 end
 
--- this function must call in main loop
+-- generate src and dest path for extract zls
 --- @param zls_version string
---- @param callback? fun(zls_version:string|nil,err_msg:string|nil)
-local function extract_zls_for_win(zls_version, callback)
+--- @return string, string
+local function generate_src_and_dest(zls_version)
     local src_loc = vim.fs.joinpath(config.tmp_path, zls_version)
-
     local _p = path:new(zls_store_path, zls_version)
     -- stylua: ignore
     if _p:exists() then _p:rm({ recursive = true }) end
     util.mkdir(_p:absolute())
 
     local dest_loc = vim.fs.normalize(_p:absolute())
+    return src_loc, dest_loc
+end
+
+-- extract zls for unix, like linux, macos
+--- @param zls_version string
+--- @param callback? fun(zls_version:string|nil,err_msg:string|nil)
+local function extract_zls_for_unix(zls_version, callback)
+    local src_loc, dest_loc = generate_src_and_dest(zls_version)
+
+    ---@diagnostic disable-next-line: missing-fields
+    local _j = job:new({
+        command = "tar",
+        args = { "-xvf", src_loc, "-C", dest_loc, get_filename() },
+        on_exit = function(_, code, signal)
+            if code ~= 0 then
+                util.error("failed to extract zls", code, signal)
+                return
+            end
+            if callback then
+                callback()
+            end
+        end,
+    })
+    _j:start()
+end
+
+-- this function must call in main loop
+--- @param zls_version string
+--- @param callback? fun(zls_version:string|nil,err_msg:string|nil)
+local function extract_zls_for_win(zls_version, callback)
+    local src_loc, dest_loc = generate_src_and_dest(zls_version)
 
     ---@diagnostic disable-next-line: missing-fields
     local _j = job:new({
@@ -343,15 +373,12 @@ local function lsp_on_new_config(new_config, new_root_dir)
 end
 
 --- @param zls_version string
---- @param zls_path string
-function M.setup_lspconfig(zls_version, zls_path)
+function M.setup_lspconfig(zls_version)
     local lspconfig = require("lspconfig")
 
     -- support use user's config
     local lsp_opt = vim.g.zls_lsp_opt or {}
-    -- lsp_opt.cmd = { zls_path }
     lsp_opt.autostart = false
-    -- TODO: change this
     lsp_opt.on_new_config = lsp_on_new_config
 
     lspconfig.zls.setup(lsp_opt)
@@ -380,12 +407,14 @@ local function cb_zls_install(params)
         return
     end
     util.Info("get zig version: " .. zig_version)
+
     local db_zls_version = M.get_zls_verion_from_db(zig_version)
     if not db_zls_version then
         util.Info("not found zls version in db, try to get meta json")
         goto l1
     end
     util.Info("found zls version in db: " .. db_zls_version)
+
     if not verify_local_zls_version(db_zls_version) then
         -- when zls version is not correct
         db_delete_with_zig_version(zig_version)
@@ -394,9 +423,8 @@ local function cb_zls_install(params)
         goto l1
     end
 
-    util.Info(
-        string.format("zls version %s is already installed", db_zls_version)
-    )
+    -- stylua: ignore
+    util.Info(string.format("zls version %s is already installed", db_zls_version))
 
     ::l1::
 
@@ -408,7 +436,7 @@ local function cb_zls_install(params)
 
         -- when not inited, setup lspconfig
         if not M.lsp_if_inited() then
-            M.setup_lspconfig(zls_version, zls_path)
+            M.setup_lspconfig(zls_version)
         end
 
         local buf_lists = vim.api.nvim_list_bufs()
@@ -447,7 +475,8 @@ local function cb_zls_install(params)
                     if util.sys == "windows" then
                         extract_zls_for_win(info.version, after_extract(info))
                     else
-                        util.Error("other platform is not support")
+                        -- for unix, like linux, macos
+                        extract_zls_for_unix(info.version, after_extract(info))
                     end
                 end)
             else

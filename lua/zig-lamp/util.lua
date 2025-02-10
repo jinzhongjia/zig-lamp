@@ -6,7 +6,7 @@ local a = require("plenary.async")
 
 local M = {}
 
--- TODO: this need to test on linux and macos
+-- TODO: this need to test on macos
 M.arch = vim.uv.os_uname().machine
 
 if vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
