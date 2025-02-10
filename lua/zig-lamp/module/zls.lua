@@ -10,17 +10,20 @@ local M = {}
 
 local lsp_is_initialized = false
 
+--- @type string|nil
 local current_lsp_zls_version = nil
 
---- @param zls_version string
+--- @param zls_version string|nil
 function M.set_current_lsp_zls_version(zls_version)
     current_lsp_zls_version = zls_version
 end
 
+--- @return string|nil
 function M.get_current_lsp_zls_version()
     return current_lsp_zls_version
 end
 
+--- @return boolean
 function M.lsp_if_inited()
     return lsp_is_initialized
 end
@@ -129,9 +132,9 @@ local function extract_zls_for_win(zls_version, callback)
     local src_loc = vim.fs.joinpath(config.tmp_path, zls_version)
 
     local _p = path:new(zls_store_path, zls_version)
-    if not _p:exists() then
-        util.mkdir(_p:absolute())
-    end
+    -- stylua: ignore
+    if _p:exists() then _p:rm({ recursive = true }) end
+    util.mkdir(_p:absolute())
 
     local dest_loc = vim.fs.normalize(_p:absolute())
 
@@ -206,8 +209,11 @@ function M.get_zls_path(zls_version)
 end
 
 -- get zls version
---- @return string
-function M.version()
+--- @return string|nil
+function M.sys_version()
+    if vim.fn.executable("zls") == 0 then
+        return nil
+    end
     --- @diagnostic disable-next-line: missing-fields
     local _tmp = job:new({ command = "zls", args = { "--version" } })
     _tmp:sync()
@@ -273,6 +279,10 @@ local function download_zls(zls_version, arch_info, callback)
     end
 
     local loc = vim.fs.joinpath(config.tmp_path, zls_version)
+    local _loc = path:new(loc)
+    if _loc:exists() then
+        _loc:rm()
+    end
     local _tmp = function(out)
         callback(out.status == 200, out)
     end
@@ -321,6 +331,17 @@ local function remove_zls_tmp(zls_version)
     end
 end
 
+local function lsp_on_new_config(new_config, new_root_dir)
+    local _zls_version = M.get_zls_version()
+    --- @type string
+    ---@diagnostic disable-next-line: assign-type-mismatch
+    local _zls_path = M.get_zls_path(_zls_version)
+    new_config.cmd = { _zls_path }
+    if vim.fn.filereadable(vim.fs.joinpath(new_root_dir, "zls.json")) ~= 0 then
+        new_config.cmd = { _zls_path, "--config-path", "zls.json" }
+    end
+end
+
 --- @param zls_version string
 --- @param zls_path string
 function M.setup_lspconfig(zls_version, zls_path)
@@ -328,7 +349,11 @@ function M.setup_lspconfig(zls_version, zls_path)
 
     -- support use user's config
     local lsp_opt = vim.g.zls_lsp_opt or {}
-    lsp_opt.cmd = { zls_path }
+    -- lsp_opt.cmd = { zls_path }
+    lsp_opt.autostart = false
+    -- TODO: change this
+    lsp_opt.on_new_config = lsp_on_new_config
+
     lspconfig.zls.setup(lsp_opt)
 
     M.set_current_lsp_zls_version(zls_version)
@@ -377,14 +402,14 @@ local function cb_zls_install(params)
 
     --- @param zls_version string
     local function after_install(zls_version)
-        -- stylua: ignore
-        if M.lsp_if_inited() then return end
-
         -- get zls path
         local _p = path:new(zls_store_path, zls_version, get_filename())
         local zls_path = vim.fs.normalize(_p:absolute())
 
-        M.setup_lspconfig(zls_version, zls_path)
+        -- when not inited, setup lspconfig
+        if not M.lsp_if_inited() then
+            M.setup_lspconfig(zls_version, zls_path)
+        end
 
         local buf_lists = vim.api.nvim_list_bufs()
         for _, bufnr in pairs(buf_lists) do
@@ -501,7 +526,7 @@ local function cb_zls_uninstall(params)
 
     util.Info("success to uninstall zls version " .. zls_version)
     if zls_version == M.get_current_lsp_zls_version() then
-        util.Warn("please restart neovim to prevent lspconfig still autostart!")
+        M.set_current_lsp_zls_version(nil)
     end
 end
 

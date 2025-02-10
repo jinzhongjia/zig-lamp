@@ -10,7 +10,7 @@ local M = {}
 
 local function info_cb()
     local zig_version = zig.version()
-    local zls_version = zls.version()
+    local sys_zls_version = zls.sys_version()
 
     local list = zls.local_zls_lists()
 
@@ -23,8 +23,10 @@ local function info_cb()
         "version: " .. (zig_version or "not found"),
         "",
         { "Zls info:", "DiagnosticOk" },
-        "system version: " .. zls_version,
     }
+    if sys_zls_version then
+        table.insert(content, "system version: " .. sys_zls_version)
+    end
 
     if zls.get_current_lsp_zls_version() then
         -- stylua: ignore
