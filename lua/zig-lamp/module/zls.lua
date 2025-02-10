@@ -325,8 +325,11 @@ end
 --- @param zls_path string
 function M.setup_lspconfig(zls_version, zls_path)
     local lspconfig = require("lspconfig")
-    -- TODO: zls lsp opts
-    lspconfig.zls.setup({ cmd = { zls_path } })
+
+    -- support use user's config
+    local lsp_opt = vim.g.zls_lsp_opt or {}
+    lsp_opt.cmd = { zls_path }
+    lspconfig.zls.setup(lsp_opt)
 
     M.set_current_lsp_zls_version(zls_version)
 
