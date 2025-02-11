@@ -6,6 +6,7 @@ local path = require("plenary.path")
 local scan = require("plenary.scandir")
 local util = require("zig-lamp.util")
 local zig = require("zig-lamp.module.zig")
+local zig_ffi = require("zig-lamp.ffi")
 local M = {}
 
 local lsp_is_initialized = false
@@ -315,7 +316,12 @@ local function download_zls(zls_version, arch_info, callback)
     end
     --- @param out { exit: number, status: number, headers: table, body: string}
     local _tmp = function(out)
-        callback(out.status == 200, out)
+        if out.status ~= 200 then
+            callback(false, out)
+            return
+        end
+        local is_ok = zig_ffi.sha256_digest(loc, arch_info.shasum)
+        callback(is_ok, out)
     end
     -- asynchronously download
     curl.get(arch_info.tarball, { output = loc, callback = _tmp })
@@ -431,10 +437,6 @@ local function cb_zls_install(params)
 
     --- @param zls_version string
     local function after_install(zls_version)
-        -- get zls path
-        local _p = path:new(zls_store_path, zls_version, get_filename())
-        local zls_path = vim.fs.normalize(_p:absolute())
-
         -- when not inited, setup lspconfig
         if not M.lsp_if_inited() then
             M.setup_lspconfig(zls_version)
