@@ -164,7 +164,7 @@ end
 
 -- this function must call in main loop
 --- @param zls_version string
---- @param callback? fun(zls_version:string|nil,err_msg:string|nil)
+--- @param callback? fun()
 local function extract_zls_for_win(zls_version, callback)
     local src_loc, dest_loc = generate_src_and_dest(zls_version)
 
@@ -313,6 +313,7 @@ local function download_zls(zls_version, arch_info, callback)
     if _loc:exists() then
         _loc:rm()
     end
+    --- @param out { exit: number, status: number, headers: table, body: string}
     local _tmp = function(out)
         callback(out.status == 200, out)
     end
@@ -466,19 +467,21 @@ local function cb_zls_install(params)
     -- run after download zls, extract zls
     --- @param info zlsMeta
     local function after_download(info)
+        local function _tmp()
+            util.Info("try to extract zls")
+            if util.sys == "windows" then
+                extract_zls_for_win(info.version, after_extract(info))
+            else
+                -- for unix, like linux, macos
+                extract_zls_for_unix(info.version, after_extract(info))
+            end
+        end
+
         --- @param result boolean
         --- @param ctx { exit: number, status: number, headers: table, body: string}
         return function(result, ctx)
             if result then
-                vim.schedule(function()
-                    util.Info("try to extract zls")
-                    if util.sys == "windows" then
-                        extract_zls_for_win(info.version, after_extract(info))
-                    else
-                        -- for unix, like linux, macos
-                        extract_zls_for_unix(info.version, after_extract(info))
-                    end
-                end)
+                vim.schedule(_tmp)
             else
                 util.Error("failed to download zls, status: " .. ctx.status)
             end
