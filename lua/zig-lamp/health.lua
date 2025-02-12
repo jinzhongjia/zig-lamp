@@ -1,7 +1,7 @@
 local health = vim.health
 local M = {}
 
-local function check_lspconig()
+local function check_lspconfig()
     health.start("check lspconfig")
     local status, _ = pcall(require, "lspconfig")
     if status then
@@ -53,12 +53,23 @@ local function check_unzip()
     end
 end
 
+local function check_lib()
+    health.start("check dynamic library")
+    local zig_ffi = require("zig-lamp.ffi")
+    if zig_ffi.get_lamp() then
+        health.ok("found lib")
+    else
+        health.error("not found lib")
+    end
+end
+
 M.check = function()
     check_zig()
     check_curl()
     check_unzip()
     check_tar()
-    check_lspconig()
+    check_lspconfig()
+    check_lib()
 end
 
 return M

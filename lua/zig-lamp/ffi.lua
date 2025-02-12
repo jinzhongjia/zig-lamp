@@ -8,22 +8,22 @@ ffi.cdef([[
     bool sha256_digest(const char* file_path, const char* shasum);
 ]])
 
+-- stylua: ignore
+local plugin_path = vim.fs.normalize(string.sub(debug.getinfo(1).source, 2, #"/ffi.lua" * -1) .. "../../")
+
 local library_path = vim.fs.normalize((function()
-    local dirname = string.sub(debug.getinfo(1).source, 2, #"/ffi.lua" * -1)
     if package.config:sub(1, 1) == "\\" then
-        return dirname .. "../../zig-out/bin/zig-lamp.dll"
+        return vim.fs.joinpath(plugin_path, "zig-out/bin/zig-lamp.dll")
     else
-        return dirname .. "../../zig-out/lib/libzig-lamp.so"
+        return vim.fs.joinpath(plugin_path, "zig-out/lib/libzig-lamp.so")
     end
 end)())
-
-local _p = path:new(library_path)
 
 --- @type ffi.namespace*|nil|true
 local _zig_lamp = nil
 
 --- @return ffi.namespace*|nil
-local function get_lamp()
+function M.get_lamp()
     -- when true, zig_lamp is not found
     if _zig_lamp == true then
         return nil
@@ -31,6 +31,7 @@ local function get_lamp()
     if _zig_lamp then
         return _zig_lamp
     end
+    local _p = path:new(library_path)
     if _p:exists() then
         _zig_lamp = ffi.load(library_path)
         return _zig_lamp
@@ -44,7 +45,7 @@ end
 --- @param shasum string
 --- @return boolean
 function M.sha256_digest(file_path, shasum)
-    local zig_lamp = get_lamp()
+    local zig_lamp = M.get_lamp()
     if not zig_lamp then
         util.Info("not found zig dynamic library, skip shasum check")
         return true
