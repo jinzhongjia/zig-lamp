@@ -324,7 +324,10 @@ local function download_zls(zls_version, arch_info, callback)
         callback(is_ok, out)
     end
     -- asynchronously download
-    curl.get(arch_info.tarball, { output = loc, callback = _tmp })
+    curl.get(
+        arch_info.tarball,
+        { output = loc, callback = vim.schedule_wrap(_tmp) }
+    )
 end
 
 -- delete specific zls version

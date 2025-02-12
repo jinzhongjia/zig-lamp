@@ -1,5 +1,6 @@
 local ffi = require("ffi")
 local path = require("plenary.path")
+local util = require("zig-lamp.util")
 
 local M = {}
 
@@ -26,6 +27,7 @@ end
 
 function M.sha256_digest(file_path, shasum)
     if zig_lamp == nil then
+        util.Info("not found zig dynamic library, skip shasum check")
         return true
     end
     return zig_lamp.sha256_digest(file_path, shasum)
