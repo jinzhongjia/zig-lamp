@@ -7,8 +7,8 @@ local M = {}
 function M.version()
     --- @diagnostic disable-next-line: missing-fields
     local _tmp = job:new({ command = "zig", args = { "version" } })
-    _tmp:sync()
-    local _result = _tmp:result()
+    local _result, _ = _tmp:sync()
+
     if _result and #_result > 0 then
         return _result[1]
     end
