@@ -418,9 +418,12 @@ local function cb_zls_install(params)
     end
     util.Info("get zig version: " .. zig_version)
 
+    local is_local = true
+
     local db_zls_version = M.get_zls_verion_from_db(zig_version)
     if not db_zls_version then
         util.Info("not found zls version in db, try to get meta json")
+        is_local = false
         goto l1
     end
     util.Info("found zls version in db: " .. db_zls_version)
@@ -430,6 +433,7 @@ local function cb_zls_install(params)
         db_delete_with_zig_version(zig_version)
         remove_zls(db_zls_version)
         util.Info("zls version verify failed, try to get meta json")
+        is_local = false
         goto l1
     end
 
@@ -437,6 +441,9 @@ local function cb_zls_install(params)
     util.Info(string.format("zls version %s is already installed", db_zls_version))
 
     ::l1::
+    if is_local then
+        return
+    end
 
     --- @param zls_version string
     local function after_install(zls_version)
