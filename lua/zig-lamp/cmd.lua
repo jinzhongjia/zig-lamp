@@ -1,6 +1,6 @@
 -- this file for zig-lamp command support
 
-local util = require "zig-lamp.util"
+local util = require("zig-lamp.util")
 local api, fn = vim.api, vim.fn
 local M = {}
 
@@ -171,9 +171,9 @@ local function handle_command(info)
     if meta_result == -1 then
         util.Info("not exist function")
         return
-    end
-
-    if meta_result > 0 then
+    elseif meta_result == 0 then
+        table.remove(_tbl_2, 1)
+    elseif meta_result > 0 then
         while meta_result > 0 do
             table.remove(_tbl_2, 1)
             meta_result = meta_result - 1
