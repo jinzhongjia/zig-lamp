@@ -87,8 +87,17 @@ local function cb_build(params)
         _j:after_failure(vim.schedule_wrap(function(_, code, signal)
             util.Error("build lamp lib failed, code is " .. code)
         end))
+
+        -- default wait 1500 ms
+        local wait_time = 15000
+        if params[2] then
+            local num = tonumber(params[2])
+            if num then
+                wait_time = math.floor(num)
+            end
+        end
         -- wait 1500 ms
-        _j:sync(15000)
+        _j:sync(wait_time)
     else
         util.Warn("error param: " .. params[1])
     end
