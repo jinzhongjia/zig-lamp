@@ -12,16 +12,20 @@ local library_path = vim.fs.normalize((function()
     if package.config:sub(1, 1) == "\\" then
         return dirname .. "../../zig-out/bin/zig-lamp.dll"
     else
-        return dirname .. "../../zig-out/bin/zig-lamp.so"
+        return dirname .. "../../zig-out/lib/libzig-lamp.so"
     end
 end)())
 
 local _p = path:new(library_path)
 
-local zig_lamp = ffi.load(library_path)
+local zig_lamp = nil
+
+if _p:exists() then
+    zig_lamp = ffi.load(library_path)
+end
 
 function M.sha256_digest(file_path, shasum)
-    if not _p:exists() then
+    if zig_lamp == nil then
         return true
     end
     return zig_lamp.sha256_digest(file_path, shasum)
