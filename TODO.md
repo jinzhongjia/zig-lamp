@@ -1,0 +1,3 @@
+- add command to build dynamic library
+- Refactoring info
+- parse `build.zig.zon`
