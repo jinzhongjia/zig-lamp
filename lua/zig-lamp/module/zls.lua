@@ -203,11 +203,12 @@ local function verify_local_zls_version(zls_version)
         command = _p:absolute(),
         args = { "--version" },
     })
-    _j:sync()
-    local _result = _j:result()
-    if _result[1] and _result[1] == zls_version then
-        return true
-    end
+    local _result, code = _j:sync()
+
+    -- stylua: ignore
+    if not _result then return false end
+    -- stylua: ignore
+    if _result[1] == zls_version then return true end
 
     return false
 end
