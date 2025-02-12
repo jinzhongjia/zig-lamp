@@ -44,7 +44,8 @@ local function cb_info()
     util.display(content, "60%", "60%")
 end
 
-local function cb_build()
+--- @param params string[]
+local function cb_build(params)
     local zig_ffi = require("zig-lamp.ffi")
     local is_loaded = zig_ffi.is_loaded()
     if is_loaded then
@@ -53,31 +54,49 @@ local function cb_build()
         return
     end
     local plugin_path = zig_ffi.get_plugin_path()
-    --- @param code integer
-    local _callback = function(_, code, signal)
-        vim.schedule(function()
-            if code ~= 0 then
-                util.Error("build lamp lib failed, code is " .. code)
-                return
-            end
+    if #params == 0 or params[1] == "async" then
+        -- async build
+
+        ---@diagnostic disable-next-line: missing-fields
+        local _j = job:new({
+            cwd = plugin_path,
+            command = "zig",
+            args = { "build", "-Doptimize=ReleaseFast" },
+            -- on_exit = _callback,
+        })
+        _j:after_success(vim.schedule_wrap(function()
             util.Info("build lamp lib success!")
             zig_ffi.lazy_load()
-        end)
+        end))
+        _j:after_failure(vim.schedule_wrap(function(_, code, signal)
+            -- stylua: ignore
+            util.Error(string.format("build lamp lib failed, code is %d, signal is %d", code, signal))
+        end))
+        _j:start()
+    elseif params[1] == "sync" then
+        -- sync build
+        ---@diagnostic disable-next-line: missing-fields
+        local _j = job:new({
+            cwd = plugin_path,
+            command = "zig",
+            args = { "build", "-Doptimize=ReleaseFast" },
+        })
+        _j:after_success(vim.schedule_wrap(function()
+            util.Info("build lamp lib success!")
+        end))
+        _j:after_failure(vim.schedule_wrap(function(_, code, signal)
+            util.Error("build lamp lib failed, code is " .. code)
+        end))
+        -- wait 1500 ms
+        _j:sync(15000)
+    else
+        util.Warn("error param: " .. params[1])
     end
-
-    ---@diagnostic disable-next-line: missing-fields
-    local _j = job:new({
-        cwd = plugin_path,
-        command = "zig",
-        args = { "build", "-Doptimize=ReleaseFast" },
-        on_exit = _callback,
-    })
-    _j:start()
 end
 
 function M.setup()
     cmd.set_command(cb_info, nil, "info")
-    cmd.set_command(cb_build, nil, "build")
+    cmd.set_command(cb_build, { "async", "sync" }, "build")
 end
 
 return {
