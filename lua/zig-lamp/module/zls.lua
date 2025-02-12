@@ -142,7 +142,7 @@ end
 
 -- extract zls for unix, like linux, macos
 --- @param zls_version string
---- @param callback? fun(zls_version:string|nil,err_msg:string|nil)
+--- @param callback? fun()
 local function extract_zls_for_unix(zls_version, callback)
     local src_loc, dest_loc = generate_src_and_dest(zls_version)
 
@@ -150,18 +150,12 @@ local function extract_zls_for_unix(zls_version, callback)
     local _j = job:new({
         command = "tar",
         args = { "-xvf", src_loc, "-C", dest_loc, get_filename() },
-        on_exit = function(_, code, signal)
-            if code ~= 0 then
-                vim.schedule(function()
-                    util.error("failed to extract zls", code, signal)
-                end)
-                return
-            end
-            if callback then
-                callback()
-            end
-        end,
     })
+    -- stylua: ignore
+    _j:after_success(function() if callback then callback() end end)
+    _j:after_failure(vim.schedule_wrap(function(_, code, signal)
+        util.error("failed to extract zls", code, signal)
+    end))
     _j:start()
 end
 
@@ -175,18 +169,12 @@ local function extract_zls_for_win(zls_version, callback)
     local _j = job:new({
         command = "unzip",
         args = { "-j", src_loc, get_filename(), "-d", dest_loc },
-        on_exit = function(_, code, signal)
-            if code ~= 0 then
-                vim.schedule(function()
-                    util.error("failed to extract zls", code, signal)
-                end)
-                return
-            end
-            if callback then
-                callback()
-            end
-        end,
     })
+    -- stylua: ignore
+    _j:after_success(function() if callback then callback() end end)
+    _j:after_failure(vim.schedule_wrap(function(_, code, signal)
+        util.error("failed to extract zls", code, signal)
+    end))
     _j:start()
 end
 
@@ -306,8 +294,6 @@ local function get_meta_json(zig_version, callback)
     curl.get(zls_meta_url, { query = query, callback = vim.schedule_wrap(__tmp) })
 end
 
--- TODO: add minisign identify support
---
 --- @param zls_version string
 --- @param arch_info zlsMetaArchInfo
 --- @param callback fun(result: boolean, ctx: { exit: number, status: number, headers: table, body: string})
@@ -333,7 +319,7 @@ local function download_zls(zls_version, arch_info, callback)
         callback(is_ok, out)
     end
     -- asynchronously download
-    curl.get(
+    local _j = curl.get(
         arch_info.tarball,
         { output = loc, callback = vim.schedule_wrap(_tmp) }
     )
