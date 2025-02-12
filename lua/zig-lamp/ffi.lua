@@ -5,7 +5,7 @@ local util = require("zig-lamp.util")
 local M = {}
 
 ffi.cdef([[
-    bool sha256_digest(const char* file_path, const char* shasum);
+    bool check_shasum(const char* file_path, const char* shasum);
 ]])
 
 -- stylua: ignore
@@ -44,14 +44,14 @@ end
 --- @param file_path string
 --- @param shasum string
 --- @return boolean
-function M.sha256_digest(file_path, shasum)
+function M.check_shasum(file_path, shasum)
     local zig_lamp = M.get_lamp()
     if not zig_lamp then
         util.Info("not found zig dynamic library, skip shasum check")
         return true
     end
     util.Info("try to check shasum")
-    return zig_lamp.sha256_digest(file_path, shasum)
+    return zig_lamp.check_shasum(file_path, shasum)
 end
 
 return M

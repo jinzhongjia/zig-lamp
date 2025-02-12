@@ -320,7 +320,7 @@ local function download_zls(zls_version, arch_info, callback)
             callback(false, out)
             return
         end
-        local is_ok = zig_ffi.sha256_digest(loc, arch_info.shasum)
+        local is_ok = zig_ffi.check_shasum(loc, arch_info.shasum)
         callback(is_ok, out)
     end
     -- asynchronously download
