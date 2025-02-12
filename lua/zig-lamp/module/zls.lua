@@ -251,8 +251,12 @@ function M.sys_version()
     end
     --- @diagnostic disable-next-line: missing-fields
     local _tmp = job:new({ command = "zls", args = { "--version" } })
-    _tmp:sync()
-    return _tmp:result()[1]
+    local _result, _ = _tmp:sync()
+    if not _result then
+        return nil
+    end
+
+    return _result[1]
 end
 
 --- @class zlsMetaArchInfo
