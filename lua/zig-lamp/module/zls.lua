@@ -152,7 +152,9 @@ local function extract_zls_for_unix(zls_version, callback)
         args = { "-xvf", src_loc, "-C", dest_loc, get_filename() },
         on_exit = function(_, code, signal)
             if code ~= 0 then
-                util.error("failed to extract zls", code, signal)
+                vim.schedule(function()
+                    util.error("failed to extract zls", code, signal)
+                end)
                 return
             end
             if callback then
@@ -175,7 +177,9 @@ local function extract_zls_for_win(zls_version, callback)
         args = { "-j", src_loc, get_filename(), "-d", dest_loc },
         on_exit = function(_, code, signal)
             if code ~= 0 then
-                util.error("failed to extract zls", code, signal)
+                vim.schedule(function()
+                    util.error("failed to extract zls", code, signal)
+                end)
                 return
             end
             if callback then
