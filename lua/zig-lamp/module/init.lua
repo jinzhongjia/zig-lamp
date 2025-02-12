@@ -2,13 +2,14 @@
 
 local cmd = require("zig-lamp.cmd")
 local config = require("zig-lamp.config")
+local job = require("plenary.job")
 local util = require("zig-lamp.util")
 local zig = require("zig-lamp.module.zig")
 local zls = require("zig-lamp.module.zls")
 
 local M = {}
 
-local function info_cb()
+local function cb_info()
     local zig_version = zig.version()
     local sys_zls_version = zls.sys_version()
 
@@ -43,8 +44,40 @@ local function info_cb()
     util.display(content, "60%", "60%")
 end
 
+local function cb_build()
+    local zig_ffi = require("zig-lamp.ffi")
+    local is_loaded = zig_ffi.is_loaded()
+    if is_loaded then
+        -- stylua: ignore
+        util.Warn("sorry, lamp lib has been loaded, could not update it! please restart neovim and run command again!")
+        return
+    end
+    local plugin_path = zig_ffi.get_plugin_path()
+    --- @param code integer
+    local _callback = function(_, code, signal)
+        vim.schedule(function()
+            if code ~= 0 then
+                util.Error("build lamp lib failed, code is " .. code)
+                return
+            end
+            util.Info("build lamp lib success!")
+            zig_ffi.lazy_load()
+        end)
+    end
+
+    ---@diagnostic disable-next-line: missing-fields
+    local _j = job:new({
+        cwd = plugin_path,
+        command = "zig",
+        args = { "build", "-Doptimize=ReleaseFast" },
+        on_exit = _callback,
+    })
+    _j:start()
+end
+
 function M.setup()
-    cmd.set_command(info_cb, nil, "info")
+    cmd.set_command(cb_info, nil, "info")
+    cmd.set_command(cb_build, nil, "build")
 end
 
 return {

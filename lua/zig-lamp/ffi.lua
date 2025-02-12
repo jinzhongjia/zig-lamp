@@ -40,6 +40,31 @@ function M.get_lamp()
     return nil
 end
 
+-- whether zig-lamp is loaded
+--- @return boolean
+function M.is_loaded()
+    if _zig_lamp == nil or _zig_lamp == true then
+        return false
+    end
+    return true
+end
+
+-- if zig-lamp is true, load it
+function M.lazy_load()
+    if _zig_lamp ~= true then
+        return
+    end
+    local _p = path:new(library_path)
+    if _p:exists() then
+        _zig_lamp = ffi.load(library_path)
+    end
+end
+
+--- @return string
+function M.get_plugin_path()
+    return plugin_path
+end
+
 -- check sha256 digest
 --- @param file_path string
 --- @param shasum string
