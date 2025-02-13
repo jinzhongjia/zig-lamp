@@ -45,3 +45,4 @@ Oh, of course, recommend to install `zig` to build lamp lib for shasum and more 
 - `ZigLamp zls install`: automatically install zls matching the current system zig version
 - `ZigLamp zls uninstall`: uninstall the specified zls
 - `ZigLamp build`: you can add param `sync` + timeout(ms optional) or `async` to select build mode
+- `ZigLamp pkg info`: you can see current pkg info(such as package name, version, dependencies..)
