@@ -1,6 +1,5 @@
 local NuiLine = require("nui.line")
 local Popup = require("nui.popup")
-local event = require("nui.utils.autocmd").event
 
 local M = {}
 
@@ -63,6 +62,7 @@ function M.display(content, width, height)
     -- mount/open the component
     popup:mount()
 
+    local event = require("nui.utils.autocmd").event
     -- unmount component when cursor leaves buffer
     popup:on(event.BufLeave, function()
         popup:unmount()
@@ -74,21 +74,21 @@ local _notify_public_message = "[ZigLamp]: "
 
 -- Error notify
 --- @param message string
-M.Error = function(message)
+function M.Error(message)
     -- stylua: ignore
     vim.api.nvim_notify(_notify_public_message .. message, vim.log.levels.ERROR, {})
 end
 
 -- Info notify
 --- @param message string
-M.Info = function(message)
+function M.Info(message)
     -- stylua: ignore
     vim.api.nvim_notify(_notify_public_message .. message, vim.log.levels.INFO, {})
 end
 
 -- Warn notify
 --- @param message string
-M.Warn = function(message)
+function M.Warn(message)
     -- stylua: ignore
     vim.api.nvim_notify(_notify_public_message .. message, vim.log.levels.WARN, {})
 end
