@@ -17,8 +17,9 @@ local function cb_pkg_info()
         util.Warn("parse build.zig.zon failed!")
         return
     end
+
     local content = {
-        { "PKG INFO", "DiagnosticInfo" },
+        { { "PKG INFO", "DiagnosticInfo" } },
     }
     if zon_info.name then
         table.insert(content, "  name: " .. zon_info.name)

@@ -17,16 +17,16 @@ local function cb_info()
     local current_lsp_zls = zls.get_current_lsp_zls_version()
 
     local content = {
-        { "Zig Lamp", "DiagnosticInfo" },
+        { { "Zig Lamp", "DiagnosticInfo" } },
         "  version: " .. config.version,
         "  data path: " .. config.data_path,
         "",
-        { "Zig info:", "DiagnosticOk" },
+        { { "Zig info:", "DiagnosticOk" } },
         "  version: " .. (zig_version or "not found"),
         "",
     }
     if sys_zls_version or current_lsp_zls or #list > 0 then
-        table.insert(content, { "ZLS info:", "DiagnosticOk" })
+        table.insert(content, { { "ZLS info:", "DiagnosticOk" } })
     end
     if sys_zls_version then
         table.insert(content, "  system version: " .. sys_zls_version)

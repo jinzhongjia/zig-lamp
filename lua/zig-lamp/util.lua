@@ -20,7 +20,7 @@ function M.mkdir(_path)
 end
 
 -- display something with nui
---- @param content (string[]|string)[]
+--- @param content (string[][]|string)[]
 --- @param width string|nil
 --- @param height string|nil
 function M.display(content, width, height)
@@ -31,7 +31,9 @@ function M.display(content, width, height)
         if type(_tmp) == "string" then
             line:append(_tmp)
         else
-            line:append(_tmp[1], _tmp[2] or nil)
+            for _, _ele in pairs(_tmp) do
+                line:append(_ele[1], _ele[2] or nil)
+            end
         end
         line:render(bufnr, -1, _index)
     end
@@ -39,6 +41,7 @@ function M.display(content, width, height)
     local popup = Popup({
         enter = true,
         focusable = true,
+        relative = "editor",
         border = {
             style = "rounded",
             text = { top = "Zig Lamp", top_align = "center" },
