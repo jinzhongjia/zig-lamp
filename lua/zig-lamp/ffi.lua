@@ -6,6 +6,8 @@ local M = {}
 
 ffi.cdef([[
     bool check_shasum(const char* file_path, const char* shasum);
+    const char* get_build_zon_info(const char* file_path);
+    void free_build_zon_info();
 ]])
 
 -- stylua: ignore
@@ -77,6 +79,41 @@ function M.check_shasum(file_path, shasum)
     end
     util.Info("try to check shasum")
     return zig_lamp.check_shasum(file_path, shasum)
+end
+
+--- @class ZigDependency
+--- @field url string
+--- @field hash string
+
+--- @class ZigBuildZon
+--- @field name string
+--- @field version string
+--- @field minimum_zig_version string|nil
+--- @field dependencies { [string] : ZigDependency }
+--- @field paths string[]
+
+--- @param file_path string
+--- @return ZigBuildZon|nil
+function M.get_build_zon_info(file_path)
+    local zig_lamp = M.get_lamp()
+    -- stylua: ignore
+    if not zig_lamp then return nil end
+
+    local _p = path:new(file_path)
+    -- stylua: ignore
+    if not _p:exists() then return nil end
+
+    local res = ffi.string(zig_lamp.get_build_zon_info(file_path))
+    -- stylua: ignore
+    if res == "" then return nil end
+    return vim.fn.json_decode(res)
+end
+
+function M.free_build_zon_info()
+    local zig_lamp = M.get_lamp()
+    -- stylua: ignore
+    if not zig_lamp then return end
+    zig_lamp.free_build_zon_info()
 end
 
 return M
