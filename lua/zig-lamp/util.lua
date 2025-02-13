@@ -42,6 +42,7 @@ function M.display(content, width, height)
         focusable = true,
         border = {
             style = "rounded",
+            text = { top = "Zig Lamp", top_align = "center" },
         },
         position = "50%",
         size = {
@@ -49,10 +50,7 @@ function M.display(content, width, height)
             height = height or "100%",
         },
         bufnr = bufnr,
-        buf_options = {
-            modifiable = false,
-            readonly = true,
-        },
+        buf_options = { modifiable = false, readonly = true },
     })
 
     vim.api.nvim_buf_set_keymap(bufnr, "n", "q", "", {

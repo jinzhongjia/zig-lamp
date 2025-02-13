@@ -85,7 +85,7 @@ local function cb_build(params)
         _j:after_success(vim.schedule_wrap(function()
             util.Info("build lamp lib success!")
         end))
-        _j:after_failure(vim.schedule_wrap(function(_, code, signal)
+        _j:after_failure(vim.schedule_wrap(function(_, code, _)
             util.Error("build lamp lib failed, code is " .. code)
         end))
 
@@ -111,6 +111,7 @@ end
 
 return {
     lamp = M,
-    zig = require("zig-lamp.module.zig"),
-    zls = require("zig-lamp.module.zls"),
+    zig = zig,
+    zls = zls,
+    pkg = require("zig-lamp.module.pkg"),
 }
