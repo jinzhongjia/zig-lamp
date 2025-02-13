@@ -1,8 +1,6 @@
 local NuiLine = require("nui.line")
-local NuiText = require("nui.text")
 local Popup = require("nui.popup")
 local event = require("nui.utils.autocmd").event
-local a = require("plenary.async")
 
 local M = {}
 
@@ -17,50 +15,9 @@ elseif vim.fn.has("unix") == 1 then
     M.sys = "linux"
 end
 
+--- @param _path string
 function M.mkdir(_path)
     vim.fn.mkdir(_path, "p")
-end
-
---- read file through path
---- @param _path string
---- @return string
-function M.read_file(_path)
-    local err, fd = a.uv.fs_open(_path, "r", 438)
-    assert(not err, err)
-
-    ---@diagnostic disable-next-line: redefined-local
-    local err, stat = a.uv.fs_fstat(fd)
-    assert(not err, err)
-
-    ---@diagnostic disable-next-line: redefined-local
-    local err, data = a.uv.fs_read(fd, stat.size, 0)
-    assert(not err, err)
-
-    ---@diagnostic disable-next-line: redefined-local
-    local err = a.uv.fs_close(fd)
-    assert(not err, err)
-
-    return data
-end
-
--- write file through path
---- @param _path string
----@param content string
-function M.write_file(_path, content)
-    local err, fd = a.uv.fs_open(_path, "w", 438)
-    assert(not err, err)
-
-    ---@diagnostic disable-next-line: redefined-local, unused-local
-    local err, stat = a.uv.fs_fstat(fd)
-    assert(not err, err)
-
-    ---@diagnostic disable-next-line: redefined-local, unused-local
-    local err, stat = a.uv.fs_write(fd, content)
-    assert(not err, err)
-
-    ---@diagnostic disable-next-line: redefined-local
-    local err = a.uv.fs_close(fd)
-    assert(not err, err)
 end
 
 -- display something with nui
@@ -92,6 +49,10 @@ function M.display(content, width, height)
             height = height or "100%",
         },
         bufnr = bufnr,
+        buf_options = {
+            modifiable = false,
+            readonly = true,
+        },
     })
 
     vim.api.nvim_buf_set_keymap(bufnr, "n", "q", "", {

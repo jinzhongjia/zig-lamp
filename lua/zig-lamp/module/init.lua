@@ -14,32 +14,33 @@ local function cb_info()
     local sys_zls_version = zls.sys_version()
 
     local list = zls.local_zls_lists()
+    local current_lsp_zls = zls.get_current_lsp_zls_version()
 
-    -- TODO: this table should reflect
     local content = {
         { "Zig Lamp", "DiagnosticInfo" },
-        "data path: " .. config.data_path,
-        "version: " .. config.version,
+        "  version: " .. config.version,
+        "  data path: " .. config.data_path,
         "",
         { "Zig info:", "DiagnosticOk" },
-        "version: " .. (zig_version or "not found"),
+        "  version: " .. (zig_version or "not found"),
         "",
-        { "Zls info:", "DiagnosticOk" },
     }
+    if sys_zls_version or current_lsp_zls or #list > 0 then
+        table.insert(content, { "ZLS info:", "DiagnosticOk" })
+    end
     if sys_zls_version then
-        table.insert(content, "system version: " .. sys_zls_version)
+        table.insert(content, "  system version: " .. sys_zls_version)
     end
 
-    if zls.get_current_lsp_zls_version() then
+    if current_lsp_zls then
         -- stylua: ignore
-        table.insert(content, "embed lsp using version: " .. zls.get_current_lsp_zls_version())
+        table.insert(content, "  lsp using version: " .. zls.get_current_lsp_zls_version())
     end
-    if #list > 0 then
-        table.insert(content, "local versions:")
-    end
-    for _, val in pairs(list) do
-        table.insert(content, "  - " .. val)
-    end
+    -- stylua: ignore
+    if #list > 0 then table.insert(content, "  local versions:") end
+
+    -- stylua: ignore
+    for _, val in pairs(list) do table.insert(content, "  - " .. val) end
 
     util.display(content, "60%", "60%")
 end
