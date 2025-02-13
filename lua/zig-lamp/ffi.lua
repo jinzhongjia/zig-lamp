@@ -8,6 +8,8 @@ ffi.cdef([[
     bool check_shasum(const char* file_path, const char* shasum);
     const char* get_build_zon_info(const char* file_path);
     void free_build_zon_info();
+    const char* fmt_zon(const char* source_code);
+    void free_fmt_zon();
 ]])
 
 -- stylua: ignore
@@ -104,16 +106,42 @@ function M.get_build_zon_info(file_path)
     if not _p:exists() then return nil end
 
     local res = ffi.string(zig_lamp.get_build_zon_info(file_path))
-    -- stylua: ignore
-    if res == "" then return nil end
-    return vim.fn.json_decode(res)
+    zig_lamp.free_build_zon_info()
+    if res == "" then
+        return nil
+    end
+    local _tmp = vim.fn.json_decode(res)
+    return _tmp
 end
 
+--- @deprecated not use this
 function M.free_build_zon_info()
     local zig_lamp = M.get_lamp()
     -- stylua: ignore
     if not zig_lamp then return end
     zig_lamp.free_build_zon_info()
+end
+
+--- @param source_code string
+--- @return string|nil
+function M.fmt_zon(source_code)
+    local zig_lamp = M.get_lamp()
+    -- stylua: ignore
+    if not zig_lamp then return nil end
+    local res = ffi.string(zig_lamp.fmt_zon(source_code))
+    zig_lamp.free_fmt_zon()
+    if res == "" then
+        return nil
+    end
+    return res
+end
+
+--- @deprecated not use this
+function M.free_fmt_zon()
+    local zig_lamp = M.get_lamp()
+    -- stylua: ignore
+    if not zig_lamp then return end
+    zig_lamp.free_fmt_zon()
 end
 
 return M

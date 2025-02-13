@@ -2,6 +2,7 @@
 
 const std = @import("std");
 const zon2json = @import("zon2json.zig");
+const fmtzon = @import("fmtzon.zig");
 const fs = std.fs;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 
@@ -9,6 +10,7 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 
 // In real world, this may set to page_size, usually it's 4096.
 const BUF_SIZE = 4096;
+const empty_str = "";
 
 pub fn sha256_digest(
     file: fs.File,
@@ -50,7 +52,6 @@ export fn check_shasum(file_path: [*c]const u8, shasum: [*c]const u8) bool {
 
 var _allocator: ?std.mem.Allocator = null;
 var json: ?[:0]const u8 = null;
-const empty_str = "";
 
 export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
     if (_allocator == null)
@@ -79,8 +80,7 @@ export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
 
     json = arr.toOwnedSliceSentinel(0) catch return empty_str;
 
-    if (json) |_json| return _json;
-    return empty_str;
+    return json.?;
 }
 
 export fn free_build_zon_info() void {
@@ -88,5 +88,26 @@ export fn free_build_zon_info() void {
     if (json) |_json| {
         _allocator.?.free(_json);
         json = null;
+    }
+}
+
+export fn fmt_zon(source_code: [*c]const u8) [*c]const u8 {
+    if (_allocator == null)
+        _allocator = gpa.allocator();
+
+    if (fmtzon.fmted_source) |_tmp|
+        _allocator.?.free(_tmp);
+
+    const source_code_len = std.mem.len(source_code);
+
+    fmtzon.fmted_source = fmtzon.fmtZon(source_code[0..source_code_len :0], _allocator.?) catch return empty_str;
+    return fmtzon.fmted_source.?;
+}
+
+export fn free_fmt_zon() void {
+    if (_allocator == null) return;
+    if (fmtzon.fmted_source) |_tmp| {
+        _allocator.?.free(_tmp);
+        fmtzon.fmted_source = null;
     }
 }
