@@ -12,7 +12,7 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const BUF_SIZE = 4096;
 const empty_str = "";
 
-pub fn sha256_digest(
+pub fn sha256Digest(
     file: fs.File,
 ) ![Sha256.digest_length]u8 {
     var sha256 = Sha256.init(.{});
@@ -28,6 +28,8 @@ pub fn sha256_digest(
     return sha256.finalResult();
 }
 
+pub const fmtZon = fmtzon.fmtZon;
+
 // this function for ffi call
 export fn check_shasum(file_path: [*c]const u8, shasum: [*c]const u8) bool {
     const file_path_len = std.mem.len(file_path);
@@ -38,7 +40,7 @@ export fn check_shasum(file_path: [*c]const u8, shasum: [*c]const u8) bool {
     };
     defer file.close();
 
-    const digest = sha256_digest(file) catch return false;
+    const digest = sha256Digest(file) catch return false;
 
     var hash: [64]u8 = std.mem.zeroes([64]u8);
     _ = std.fmt.bufPrint(&hash, "{s}", .{std.fmt.fmtSliceHexLower(&digest)}) catch return false;

@@ -10,7 +10,7 @@ For zig, you can use this plugin to parse zig build dependency from `build.zig.z
 
 For neovim user, please use neovim `0.10`!
 
-this plugin's dependecy is [nui.nvim](https://github.com/MunifTanjim/nui.nvim) and [plenary.nvim](https://github.com/nvim-lua/plenary.nvim)!
+this plugin's dependecy is [plenary.nvim](https://github.com/nvim-lua/plenary.nvim)!
 
 If you are using `lazy.nvim`, just add this to your configuration file:
 
@@ -24,7 +24,6 @@ If you are using `lazy.nvim`, just add this to your configuration file:
     -- or ":ZigLamp build sync 20000" for sync build with specified timeout 20000ms
     dependencies = {
         "nvim-lua/plenary.nvim",
-        "MunifTanjim/nui.nvim",
     },
     init = function()
         -- this is setting for zls with lspconfig, the opts you need to see document of zls and lspconfig

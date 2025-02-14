@@ -16,17 +16,20 @@ local function cb_info()
     local list = zls.local_zls_lists()
     local current_lsp_zls = zls.get_current_lsp_zls_version()
 
+    local new_buf = vim.api.nvim_create_buf(false, true)
+    vim.api.nvim_set_option_value("modifiable", true, { buf = new_buf })
+
     local content = {
-        { { "Zig Lamp", "DiagnosticInfo" } },
+        "Zig Lamp",
         "  version: " .. config.version,
         "  data path: " .. config.data_path,
         "",
-        { { "Zig info:", "DiagnosticOk" } },
+        "Zig info:",
         "  version: " .. (zig_version or "not found"),
         "",
     }
     if sys_zls_version or current_lsp_zls or #list > 0 then
-        table.insert(content, { { "ZLS info:", "DiagnosticOk" } })
+        table.insert(content, "ZLS info:")
     end
     if sys_zls_version then
         table.insert(content, "  system version: " .. sys_zls_version)
@@ -41,8 +44,21 @@ local function cb_info()
 
     -- stylua: ignore
     for _, val in pairs(list) do table.insert(content, "  - " .. val) end
-
-    util.display(content, "60%", "60%")
+    vim.api.nvim_buf_set_lines(new_buf, 0, -1, true, content)
+    vim.api.nvim_set_option_value("filetype", "ZigLamp_info", { buf = new_buf })
+    vim.api.nvim_set_option_value("bufhidden", "delete", { buf = new_buf })
+    vim.api.nvim_set_option_value("modifiable", false, { buf = new_buf })
+    local win = vim.api.nvim_open_win(
+        new_buf,
+        true,
+        { split = "right", style = "minimal", width = 50 }
+    )
+    vim.api.nvim_buf_set_keymap(new_buf, "n", "q", "", {
+        desc = "quit for ZigLamp info panel",
+        callback = function()
+            vim.api.nvim_win_close(win, true)
+        end,
+    })
 end
 
 --- @param params string[]

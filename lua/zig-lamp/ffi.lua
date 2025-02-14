@@ -86,7 +86,7 @@ end
 --- @class ZigDependency
 --- @field url string
 --- @field hash string
-
+---
 --- @class ZigBuildZon
 --- @field name string
 --- @field version string
@@ -94,6 +94,8 @@ end
 --- @field dependencies { [string] : ZigDependency }
 --- @field paths string[]
 
+-- get build.zig.zon info
+-- this will parse as a table
 --- @param file_path string
 --- @return ZigBuildZon|nil
 function M.get_build_zon_info(file_path)
@@ -122,6 +124,7 @@ function M.free_build_zon_info()
     zig_lamp.free_build_zon_info()
 end
 
+-- format zon code
 --- @param source_code string
 --- @return string|nil
 function M.fmt_zon(source_code)

@@ -1,6 +1,3 @@
-local NuiLine = require("nui.line")
-local Popup = require("nui.popup")
-
 local M = {}
 
 -- TODO: this need to test on macos
@@ -17,59 +14,6 @@ end
 --- @param _path string
 function M.mkdir(_path)
     vim.fn.mkdir(_path, "p")
-end
-
--- display something with nui
---- @param content (string[][]|string)[]
---- @param width string|nil
---- @param height string|nil
-function M.display(content, width, height)
-    local bufnr = vim.api.nvim_create_buf(false, true)
-
-    for _index, _tmp in pairs(content) do
-        local line = NuiLine()
-        if type(_tmp) == "string" then
-            line:append(_tmp)
-        else
-            for _, _ele in pairs(_tmp) do
-                line:append(_ele[1], _ele[2] or nil)
-            end
-        end
-        line:render(bufnr, -1, _index)
-    end
-
-    local popup = Popup({
-        enter = true,
-        focusable = true,
-        relative = "editor",
-        border = {
-            style = "rounded",
-            text = { top = "Zig Lamp", top_align = "center" },
-        },
-        position = "50%",
-        size = {
-            width = width or "100%",
-            height = height or "100%",
-        },
-        bufnr = bufnr,
-        buf_options = { modifiable = false, readonly = true },
-    })
-
-    vim.api.nvim_buf_set_keymap(bufnr, "n", "q", "", {
-        noremap = true,
-        callback = function()
-            popup:_close_window()
-        end,
-    })
-
-    -- mount/open the component
-    popup:mount()
-
-    local event = require("nui.utils.autocmd").event
-    -- unmount component when cursor leaves buffer
-    popup:on(event.BufLeave, function()
-        popup:unmount()
-    end)
 end
 
 -- this is public notify message prefix

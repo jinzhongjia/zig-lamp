@@ -11,7 +11,7 @@ do
 
         if not zls_path or not zls_version then
         -- stylua: ignore
-        util.Info("Not found valid zls, please run \"ZigLamp zls install\" to install it.")
+        util.Warn("Not found valid zls, please run \"ZigLamp zls install\" to install it.")
             return
         end
 
