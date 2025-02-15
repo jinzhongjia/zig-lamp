@@ -191,7 +191,7 @@ local function verify_local_zls_version(zls_version)
         command = _p:absolute(),
         args = { "--version" },
     })
-    local _result, code = _j:sync()
+    local _result, _ = _j:sync()
 
     -- stylua: ignore
     if not _result then return false end
@@ -240,6 +240,9 @@ function M.sys_version()
     end
     --- @diagnostic disable-next-line: missing-fields
     local _tmp = job:new({ command = "zls", args = { "--version" } })
+    _tmp:after_failure(vim.schedule_wrap(function(_, code, signal)
+        util.error("failed to get sys zls version", code, signal)
+    end))
     local _result, _ = _tmp:sync()
     if not _result then
         return nil
@@ -319,7 +322,7 @@ local function download_zls(zls_version, arch_info, callback)
         callback(is_ok, out)
     end
     -- asynchronously download
-    local _j = curl.get(
+    curl.get(
         arch_info.tarball,
         { output = loc, callback = vim.schedule_wrap(_tmp) }
     )
