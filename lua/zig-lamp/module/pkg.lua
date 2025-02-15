@@ -1,11 +1,10 @@
 local cmd = require("zig-lamp.cmd")
+local job = require("plenary.job")
 local util = require("zig-lamp.util")
 local zig_ffi = require("zig-lamp.ffi")
 local M = {}
 
 local api, fn = vim.api, vim.fn
-
-local ns = api.nvim_create_namespace("ZigLamp_pkg")
 
 local nvim_open_win = api.nvim_open_win
 local nvim_set_option_value = api.nvim_set_option_value
@@ -15,7 +14,7 @@ local nvim_set_option_value = api.nvim_set_option_value
 local function find_build_zon(_path)
     local path = require("plenary.path")
     if not _path then
-        _path = vim.fn.getcwd()
+        _path = fn.getcwd()
     end
     local _p = path:new(_path)
     -- try find build.zig.zon
@@ -23,30 +22,23 @@ local function find_build_zon(_path)
     return _root
 end
 
-local function test()
-    vim.ui.input(
-        { prompt = "Enter value for shiftwidth: ", default = "kkkk" },
-        function(input)
-            vim.o.shiftwidth = tonumber(input)
-        end
-    )
-    -- vim.ui.select({ "tabs", "spaces" }, {
-    --     prompt = "Select tabs or spaces:",
-    --     format_item = function(item)
-    --         return "I'd like to choose " .. item
-    --     end,
-    -- }, function(choice)
-    --     if choice == "spaces" then
-    --         vim.o.expandtab = true
-    --     else
-    --         vim.o.expandtab = false
-    --     end
-    -- end)
+--- @param _url string
+local function get_hash(_url)
+    if vim.fn.executable("zig") == 0 then
+        return nil
+    end
+    --- @diagnostic disable-next-line: missing-fields
+    local _tmp = job:new({ command = "zig", args = { "fetch", _url } })
+    _tmp:after_failure(vim.schedule_wrap(function(_, code, signal)
+        util.error("failed fetch: " .. _url, code, signal)
+    end))
+    util.Info("fetching: " .. _url)
+    local _result, _ = _tmp:sync(vim.g.zig_fetch_timeout)
+    if not _result then
+        return nil
+    end
+    return _result[1]
 end
-
--- local function get_zon_obj_from_line()
---
--- end
 
 -- this function only display content, and set key_cb, not do other thing!!!!
 --- @param buffer integer
@@ -55,18 +47,12 @@ local function render(buffer, zon_info)
     --- @type string[], function[]
     local content = { "  Package Info", "" }
 
-    if zon_info.name then
-        table.insert(content, "  Name: " .. zon_info.name)
-    end
+    table.insert(content, "  Name: " .. (zon_info.name or "[none]"))
 
-    if zon_info.version then
-        table.insert(content, "  Version: " .. zon_info.version)
-    end
+    table.insert(content, "  Version: " .. (zon_info.version or "[none]"))
 
-    if zon_info.minimum_zig_version then
-        -- stylua: ignore
-        table.insert(content, "  Minimum zig version: " .. zon_info.minimum_zig_version)
-    end
+    local min_version = zon_info.minimum_zig_version or "[none]"
+    table.insert(content, "  Minimum zig version: " .. min_version)
 
     if zon_info.paths and #zon_info.paths == 1 and zon_info.paths[1] == "" then
         table.insert(content, "  Paths [include all]")
@@ -90,7 +76,7 @@ local function render(buffer, zon_info)
     end
 
     nvim_set_option_value("modifiable", true, { buf = buffer })
-    vim.api.nvim_buf_set_lines(buffer, 0, -1, true, content)
+    api.nvim_buf_set_lines(buffer, 0, -1, true, content)
 end
 
 --- @param buffer integer
@@ -98,7 +84,6 @@ end
 local d_cb = function(buffer, zon_info)
     return function()
         local lnum = api.nvim_win_get_cursor(0)[1] - 2
-        print(lnum)
         if lnum < 1 then
             return
         end
@@ -139,11 +124,11 @@ end
 local i_cb = function(buffer, zon_info)
     return function()
         local lnum = api.nvim_win_get_cursor(0)[1] - 2
-        print(lnum)
         if lnum < 1 then
             return
         end
-        if zon_info.name and lnum - 1 == 0 then
+        -- for name
+        if lnum - 1 == 0 then
             vim.ui.input({
                 prompt = "Enter value for name: ",
                 default = zon_info.name,
@@ -158,7 +143,8 @@ local i_cb = function(buffer, zon_info)
         end
         lnum = lnum - 1
 
-        if zon_info.version and lnum - 1 == 0 then
+        -- for version
+        if lnum - 1 == 0 then
             vim.ui.input({
                 prompt = "Enter value for version: ",
                 default = zon_info.version,
@@ -172,7 +158,8 @@ local i_cb = function(buffer, zon_info)
         end
         lnum = lnum - 1
 
-        if zon_info.minimum_zig_version and lnum - 1 == 0 then
+        -- for minimum zig version
+        if lnum - 1 == 0 then
             vim.ui.input({
                 prompt = "Enter value for minimum zig version: ",
                 default = zon_info.minimum_zig_version,
@@ -231,7 +218,7 @@ local i_cb = function(buffer, zon_info)
         end
         if lnum - 1 == 0 then
             vim.ui.input({
-                prompt = "Enter value for dependency name: ",
+                prompt = "Enter value for new dependency name: ",
                 default = "new_dep",
             }, function(input)
                 -- stylua: ignore
@@ -270,6 +257,10 @@ local i_cb = function(buffer, zon_info)
                         -- stylua: ignore
                         if not input then return end
                         zon_info.dependencies[name].url = input
+                        local _hash = get_hash(input)
+                        if _hash then
+                            zon_info.dependencies[name].hash = _hash
+                        end
                         render(buffer, zon_info)
                     end)
                     return
@@ -293,9 +284,25 @@ local i_cb = function(buffer, zon_info)
     end
 end
 
+--- @param zon_info ZigBuildZon
+--- @param zon_path table
+local function sync_cb(zon_info, zon_path)
+    return function()
+        local zon_str = util.wrap_j2zon(zon_info)
+        local fmted_code = zig_ffi.fmt_zon(zon_str)
+        if not fmted_code then
+            util.warn("in sync zon step, format zon failed!")
+            return
+        end
+        zon_path:write(fmted_code, "w", 438)
+        util.Info("sync zon success!")
+    end
+end
+
 --- @param buffer integer
 --- @param zon_info ZigBuildZon
-local function keymap(buffer, zon_info)
+--- @param zon_path table
+local function keymap(buffer, zon_info, zon_path)
     api.nvim_buf_set_keymap(buffer, "n", "q", "", {
         noremap = true,
         nowait = true,
@@ -318,6 +325,13 @@ local function keymap(buffer, zon_info)
         callback = d_cb(buffer, zon_info),
         desc = "delete for ZigLamp info panel",
     })
+
+    api.nvim_buf_set_keymap(buffer, "n", "<leader>s", "", {
+        noremap = true,
+        nowait = true,
+        callback = sync_cb(zon_info, zon_path),
+        desc = "sync for ZigLamp info panel",
+    })
 end
 
 --- @param buffer integer
@@ -331,14 +345,14 @@ end
 --- @param params string[]
 local function cb_pkg(params)
     -- try find build.zig.zon
-    local _root = find_build_zon()
-    if not _root then
+    local zon_path = find_build_zon()
+    if not zon_path then
         util.Warn("not found build.zig.zon")
         return
     end
 
     -- try parse build.zig.zon
-    local zon_info = zig_ffi.get_build_zon_info(_root:absolute())
+    local zon_info = zig_ffi.get_build_zon_info(zon_path:absolute())
     if not zon_info then
         util.Warn("parse build.zig.zon failed!")
         return
@@ -351,8 +365,8 @@ local function cb_pkg(params)
     set_buf_option(new_buf)
 
     -- stylua: ignore
-    local win = api.nvim_open_win(new_buf, true, { split = "below", style = "minimal" })
-    keymap(new_buf, zon_info)
+    local _win = nvim_open_win(new_buf, true, { split = "below", style = "minimal" })
+    keymap(new_buf, zon_info, zon_path)
 end
 
 function M.setup()

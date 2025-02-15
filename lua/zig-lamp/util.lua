@@ -51,6 +51,22 @@ local function is_array(t)
     return true
 end
 
+--- @param info ZigBuildZon
+--- @return string
+function M.wrap_j2zon(info)
+    local res = ""
+    res = res .. ".{"
+    res = res .. ".name = " .. M.data2zon(info.name or "") .. ","
+    res = res .. ".version = " .. M.data2zon(info.version or "") .. ","
+    -- stylua: ignore
+    res = res .. ".minimum_zig_version = " .. M.data2zon(info.minimum_zig_version or "") .. ","
+    -- stylua: ignore
+    res = res .. ".dependencies = ".. M.data2zon(info.dependencies or {}) .. ","
+    res = res .. ".paths=" .. M.data2zon(info.paths or {}) .. ","
+    res = res .. "}"
+    return res
+end
+
 -- convert lua type to a zon string, but now we can not format the string
 function M.data2zon(obj)
     local res = ""
