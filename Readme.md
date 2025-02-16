@@ -23,6 +23,7 @@ If you are using `lazy.nvim`, just add this to your configuration file:
     -- or ":ZigLamp build" for async build, the build job will return immediately
     -- or ":ZigLamp build sync 20000" for sync build with specified timeout 20000ms
     dependencies = {
+        "neovim/nvim-lspconfig",
         "nvim-lua/plenary.nvim",
     },
     -- Here is default config, in general you no need to set these options
