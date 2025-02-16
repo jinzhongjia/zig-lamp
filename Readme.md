@@ -72,3 +72,8 @@ exe.root_module.addImport("zigLamp", zig_lamp.module("zigLamp"));
 - `ZigLamp zls uninstall`: uninstall the specified zls
 - `ZigLamp build`: you can add param `sync` + timeout(ms optional) or `async` to select build mode
 - `ZigLamp pkg`: package manager panel
+
+## ScreenShot
+
+![pkg_panel](https://github.com/user-attachments/assets/01324e66-5912-4532-beeb-ac82c3ca84d0)
+![info](https://github.com/user-attachments/assets/c5c988b5-d0b4-453e-8967-2b00b2bd3a11)
