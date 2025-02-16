@@ -95,4 +95,17 @@ function M.data2zon(obj)
     return res
 end
 
+--- @param color string
+--- @param amount number
+function M.adjust_brightness(color, amount)
+    local r = tonumber(color:sub(2, 3), 16)
+    local g = tonumber(color:sub(4, 5), 16)
+    local b = tonumber(color:sub(6, 7), 16)
+
+    r = math.min(255, math.max(0, r + amount))
+    g = math.min(255, math.max(0, g + amount))
+    b = math.min(255, math.max(0, b + amount))
+
+    return string.format("#%02X%02X%02X", r, g, b)
+end
 return M

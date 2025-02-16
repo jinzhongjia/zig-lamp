@@ -1,2 +1,2 @@
-- Refactoring info
-- parse `build.zig.zon`
+- zig fmt error parse
+- info panel highlight
