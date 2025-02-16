@@ -4,13 +4,13 @@ This is a plugin for neovim and a library for zig.
 
 For neovim, you can install zls easily through this plugin.
 
-For zig, you can use this plugin to parse zig build dependency from `build.zig.zon`(developing!!).
+For zig, you can use this plugin to parse zig build dependency from `build.zig.zon`.
 
-## Install
+## Install(neovim)
 
 For neovim user, please use neovim `0.10`!
 
-this plugin's dependecy is [plenary.nvim](https://github.com/nvim-lua/plenary.nvim)!
+this plugin's dependency is [plenary.nvim](https://github.com/nvim-lua/plenary.nvim) and [lspconfig](https://github.com/neovim/nvim-lspconfig)!
 
 If you are using `lazy.nvim`, just add this to your configuration file:
 
@@ -25,9 +25,12 @@ If you are using `lazy.nvim`, just add this to your configuration file:
     dependencies = {
         "nvim-lua/plenary.nvim",
     },
+    -- Here is default config, in general you no need to set these options
     init = function()
         -- this is setting for zls with lspconfig, the opts you need to see document of zls and lspconfig
         vim.g.zls_lsp_opt = {}
+        vim.g.zig_lamp_pkg_help_fg = "#CF5C00"
+        vim.g.zig_fetch_timeout = 5000
     end,
 }
 ```
@@ -36,7 +39,31 @@ for windows user: you need `curl` and `unzip`
 
 for unix-like user: you need `curl` and `tar`
 
-Oh, of course, recommend to install `zig` to build lamp lib for shasum and more features.(_hhh, this sentence seems be meaningless_)
+Oh, of course, you need to install `zig` to build lamp lib for shasum and more features.(_hhh, this sentence seems be meaningless_)
+
+## Install(zig)
+
+1. Add to `build.zig.zon`
+
+```sh
+# It is recommended to replace the following branch with commit id
+zig fetch --save https://github.com/jinzhongjia/zig-lamp/archive/main.tar.gz
+# Of course, you can also use git+https to fetch this package!
+```
+
+2. Config to `build.zig`
+
+```zig
+// To standardize development, maybe you should use `lazyDependency()` instead of `dependency()`
+// more info to see: https://ziglang.org/download/0.12.0/release-notes.html#toc-Lazy-Dependencies
+const zig_lamp = b.dependency("zig-lamp", .{
+    .target = target,
+    .optimize = optimize,
+});
+
+// add module
+exe.root_module.addImport("zigLamp", zig_lamp.module("zigLamp"));
+```
 
 ## Command
 
@@ -44,4 +71,4 @@ Oh, of course, recommend to install `zig` to build lamp lib for shasum and more 
 - `ZigLamp zls install`: automatically install zls matching the current system zig version
 - `ZigLamp zls uninstall`: uninstall the specified zls
 - `ZigLamp build`: you can add param `sync` + timeout(ms optional) or `async` to select build mode
-- `ZigLamp pkg info`: you can see current pkg info(such as package name, version, dependencies..)
+- `ZigLamp pkg`: package manager panel

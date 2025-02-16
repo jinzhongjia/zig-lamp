@@ -12,6 +12,8 @@ var gpa = std.heap.GeneralPurposeAllocator(.{}){};
 const BUF_SIZE = 4096;
 const empty_str = "";
 
+pub const zig2json = zon2json.parse;
+
 pub fn sha256Digest(
     file: fs.File,
 ) ![Sha256.digest_length]u8 {
