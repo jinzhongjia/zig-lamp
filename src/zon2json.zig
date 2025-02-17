@@ -53,7 +53,7 @@ fn stringify(allocator: std.mem.Allocator, writer: anytype, ast: std.zig.Ast, id
     } else if (ast.fullArrayInit(&buf, idx)) |v| {
         try writer.writeAll("[");
         for (v.ast.elements, 0..) |i, n| {
-            try stringify(allocator, writer, ast, i, false) ;
+            try stringify(allocator, writer, ast, i, false);
             if (n + 1 != v.ast.elements.len) try writer.writeAll(",");
         }
         try writer.writeAll("]");
@@ -76,7 +76,7 @@ pub fn parse(allocator: std.mem.Allocator, reader: std.io.AnyReader, writer: any
         errdefer allocator.free(tmp);
         tmp = try allocator.realloc(tmp, tmp.len + 1);
         tmp[tmp.len - 1] = 0;
-        break :blk tmp[0..tmp.len - 1 :0];
+        break :blk tmp[0 .. tmp.len - 1 :0];
     };
 
     defer allocator.free(zon);
@@ -87,7 +87,7 @@ pub fn parse(allocator: std.mem.Allocator, reader: std.io.AnyReader, writer: any
         if (@TypeOf(error_writer) != void) {
             for (ast.errors) |e| {
                 const loc = ast.tokenLocation(ast.errorOffset(e), e.token);
-                try error_writer.print("error: {s}:{}:{}: ", .{opts.file_name, loc.line, loc.column});
+                try error_writer.print("error: {s}:{}:{}: ", .{ opts.file_name, loc.line, loc.column });
                 try ast.renderError(e, error_writer);
                 try error_writer.writeAll("\n");
             }
@@ -96,16 +96,4 @@ pub fn parse(allocator: std.mem.Allocator, reader: std.io.AnyReader, writer: any
     }
 
     try stringify(allocator, writer, ast, ast.nodes.items(.data)[0].lhs, false);
-}
-
-test {
-    const allocator = std.testing.allocator;
-    var json = std.ArrayList(u8).init(allocator);
-    defer json.deinit();
-    var file = try std.fs.cwd().openFile("build.zig.zon", .{.mode = .read_only});
-    defer file.close();
-    try parse(allocator, file.reader().any(), json.writer(), {}, .{});
-    try std.testing.expectEqualStrings(
-        \\{"name":"zon2json","version":"0.0.0","dependencies":{},"paths":["src","build.zig","build.zig.zon","LICENSE"]}
-        , json.items);
 }

@@ -1,0 +1,30 @@
+name: CI
+
+on:
+    push:
+        branches:
+            - "*"
+    schedule:
+        - cron: "0 2 * * *"
+    workflow_dispatch:
+
+jobs:
+    build:
+        strategy:
+            matrix:
+                os: [ubuntu-latest]
+                version: [0.13.0, master]
+            fail-fast: false
+        runs-on: ${{ matrix.os }}
+        steps:
+            - name: Setup neovim nightly
+              uses: MunifTanjim/setup-neovim-action@v1
+            - name: Setup Zig
+              uses: goto-bus-stop/setup-zig@v2
+              with:
+                  version: ${{ matrix.version }}
+            - uses: actions/checkout@v4
+              with:
+                  fetch-depth: 0
+            - name: Build with Zig
+              run: zig build
