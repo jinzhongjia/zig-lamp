@@ -36,6 +36,8 @@ If you are using `lazy.nvim`, just add this to your configuration file:
 }
 ```
 
+**Do not set zls through lspconfig, `zig-lamp` will do this!**
+
 for windows user: you need `curl` and `unzip`
 
 for unix-like user: you need `curl` and `tar`
