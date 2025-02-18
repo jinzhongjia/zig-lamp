@@ -67,6 +67,15 @@ function M.wrap_j2zon(info)
     return res
 end
 
+-- whether the str is legal for zig
+--- @param str string
+local function str_if_legal(str)
+    local result = string.find(str, "-") == nil
+    local first_char = string.sub(str, 1, 1)
+    result = result and string.match(first_char, "[%a_]") ~= nil
+    return result
+end
+
 -- convert lua type to a zon string, but now we can not format the string
 function M.data2zon(obj)
     local res = ""
@@ -75,7 +84,11 @@ function M.data2zon(obj)
         local if_arr = is_array(obj)
         for key, value in pairs(obj) do
             if not if_arr then
-                res = res .. "." .. key .. "="
+                if str_if_legal(key) then
+                    res = res .. "." .. key .. "="
+                else
+                    res = res .. '.@"' .. key .. '"='
+                end
             end
             res = res .. M.data2zon(value)
             res = res .. ","

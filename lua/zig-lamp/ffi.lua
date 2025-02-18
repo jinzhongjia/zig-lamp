@@ -84,10 +84,10 @@ function M.check_shasum(file_path, shasum)
 end
 
 --- @class ZigDependency
---- @field url string
---- @field hash string
---- @field path string
---- @field lazy boolean
+--- @field url? string
+--- @field hash? string
+--- @field path? string
+--- @field lazy? boolean
 ---
 --- @class ZigBuildZon
 --- @field name string
