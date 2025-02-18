@@ -273,6 +273,10 @@ local edit_cb = function(ctx)
             }, function(input)
                 -- stylua: ignore
                 if not input then return end
+                if input == "" then
+                    util.Warn("sorry, the name of package can not be empty!")
+                    return
+                end
 
                 zon_info.name = input
                 render(ctx)
@@ -289,6 +293,10 @@ local edit_cb = function(ctx)
             }, function(input)
                 -- stylua: ignore
                 if not input then return end
+                if input == "" then
+                    util.Warn("sorry, the version of package can not be empty!")
+                    return
+                end
                 zon_info.version = input
                 render(ctx)
             end)
