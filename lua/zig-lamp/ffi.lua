@@ -86,6 +86,8 @@ end
 --- @class ZigDependency
 --- @field url string
 --- @field hash string
+--- @field path string
+--- @field lazy boolean
 ---
 --- @class ZigBuildZon
 --- @field name string
