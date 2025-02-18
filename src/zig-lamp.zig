@@ -84,6 +84,8 @@ export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
 
     json = arr.toOwnedSliceSentinel(0) catch return empty_str;
 
+    if (json == null) return empty_str;
+
     return json.?;
 }
 
@@ -105,6 +107,9 @@ export fn fmt_zon(source_code: [*c]const u8) [*c]const u8 {
     const source_code_len = std.mem.len(source_code);
 
     fmtzon.fmted_source = fmtzon.fmtZon(source_code[0..source_code_len :0], _allocator.?) catch return empty_str;
+
+    if (fmtzon.fmted_source == null) return empty_str;
+
     return fmtzon.fmted_source.?;
 }
 

@@ -33,7 +33,8 @@ local function get_hash(_url)
     --- @diagnostic disable-next-line: missing-fields
     local _tmp = job:new({ command = "zig", args = { "fetch", _url } })
     _tmp:after_failure(vim.schedule_wrap(function(_, code, signal)
-        util.error("failed fetch: " .. _url, code, signal)
+        -- stylua: ignore
+        util.Error(string.format("failed fetch: %s, code is %d, signal is %d", _url, code, signal))
     end))
     util.Info("fetching: " .. _url)
     local _result, _ = _tmp:sync(vim.g.zig_fetch_timeout)
@@ -177,25 +178,54 @@ local function render(ctx)
                 col_end = str_len(name_prefix) + str_len(name),
             })
 
-            local url_prefix = "      url: "
-            table.insert(content, url_prefix .. _info.url)
-            current_lnum = current_lnum + 1
-            table.insert(highlight, {
-                group = "Underlined",
-                line = current_lnum,
-                col_start = str_len(url_prefix),
-                col_end = str_len(url_prefix) + str_len(_info.url),
-            })
+            if _info.url then
+                local url_prefix = "      url: "
+                table.insert(content, url_prefix .. _info.url)
+                current_lnum = current_lnum + 1
+                table.insert(highlight, {
+                    group = "Underlined",
+                    line = current_lnum,
+                    col_start = str_len(url_prefix),
+                    col_end = str_len(url_prefix) + str_len(_info.url),
+                })
+            elseif _info.path then
+                local path_prefix = "      path: "
+                table.insert(content, path_prefix .. _info.path)
+                current_lnum = current_lnum + 1
+                table.insert(highlight, {
+                    group = "Underlined",
+                    line = current_lnum,
+                    col_start = str_len(path_prefix),
+                    col_end = str_len(path_prefix) + str_len(_info.path),
+                })
+            else
+                local __prefix = "      url or path is none"
+                table.insert(content, __prefix)
+                current_lnum = current_lnum + 1
+            end
 
-            local hash_prefix = "      hash: "
-            table.insert(content, hash_prefix .. _info.hash)
-            current_lnum = current_lnum + 1
-            table.insert(highlight, {
-                group = "Underlined",
-                line = current_lnum,
-                col_start = str_len(hash_prefix),
-                col_end = str_len(hash_prefix) + str_len(_info.hash),
-            })
+            if _info.url then
+                local hash_prefix = "      hash: "
+                table.insert(content, hash_prefix .. (_info.hash or "[none]"))
+                current_lnum = current_lnum + 1
+                table.insert(highlight, {
+                    group = "Underlined",
+                    line = current_lnum,
+                    col_start = str_len(hash_prefix),
+                    col_end = str_len(hash_prefix)
+                        + str_len(_info.hash or "[none]"),
+                })
+            end
+
+            if _info.lazy == nil then
+                local lazy_prefix = "      lazy: [empty]"
+                table.insert(content, lazy_prefix)
+                current_lnum = current_lnum + 1
+            else
+                local lazy_prefix = "      lazy: "
+                table.insert(content, lazy_prefix .. tostring(_info.lazy))
+                current_lnum = current_lnum + 1
+            end
         end
     end
 
@@ -219,7 +249,6 @@ end
 --- @param ctx pkg_ctx
 local function delete_cb(ctx)
     -- local buffer = ctx.buffer
-    local zon_info = ctx.zon_info
     return function()
         local lnum = api.nvim_win_get_cursor(0)[1] - 2
         if lnum < 1 then
@@ -228,13 +257,13 @@ local function delete_cb(ctx)
         lnum = lnum - 4
 
         if
-            zon_info.paths
-            and #zon_info.paths > 0
-            and zon_info.paths[1] ~= ""
+            ctx.zon_info.paths
+            and #ctx.zon_info.paths > 0
+            and ctx.zon_info.paths[1] ~= ""
         then
-            for _index, _ in pairs(zon_info.paths) do
+            for _index, _ in pairs(ctx.zon_info.paths) do
                 if lnum - 1 == 0 then
-                    table.remove(zon_info.paths, _index)
+                    table.remove(ctx.zon_info.paths, _index)
                     render(ctx)
                     return
                 end
@@ -243,15 +272,22 @@ local function delete_cb(ctx)
         end
 
         lnum = lnum - 1
-        local deps_is_empty = vim.tbl_isempty(zon_info.dependencies)
-        if zon_info.dependencies and not deps_is_empty then
-            for name, _ in pairs(zon_info.dependencies) do
-                if lnum > 0 and lnum < 4 then
-                    zon_info.dependencies[name] = nil
+        local deps_is_empty = vim.tbl_isempty(ctx.zon_info.dependencies)
+        if ctx.zon_info.dependencies and not deps_is_empty then
+            for name, _info in pairs(ctx.zon_info.dependencies) do
+                local _len
+                if _info.url then
+                    _len = 4
+                else
+                    _len = 3
+                end
+
+                if lnum > 0 and lnum < _len + 1 then
+                    ctx.zon_info.dependencies[name] = nil
                     render(ctx)
                     return
                 end
-                lnum = lnum - 3
+                lnum = lnum - _len
             end
         end
     end
@@ -259,7 +295,6 @@ end
 
 --- @param ctx pkg_ctx
 local edit_cb = function(ctx)
-    local zon_info = ctx.zon_info
     return function()
         local lnum = api.nvim_win_get_cursor(0)[1] - 2
         if lnum < 1 then
@@ -269,12 +304,16 @@ local edit_cb = function(ctx)
         if lnum - 1 == 0 then
             vim.ui.input({
                 prompt = "Enter value for name: ",
-                default = zon_info.name,
+                default = ctx.zon_info.name,
             }, function(input)
                 -- stylua: ignore
                 if not input then return end
+                if input == "" then
+                    util.Warn("sorry, the name of package can not be empty!")
+                    return
+                end
 
-                zon_info.name = input
+                ctx.zon_info.name = input
                 render(ctx)
             end)
             return
@@ -285,11 +324,15 @@ local edit_cb = function(ctx)
         if lnum - 1 == 0 then
             vim.ui.input({
                 prompt = "Enter value for version: ",
-                default = zon_info.version,
+                default = ctx.zon_info.version,
             }, function(input)
                 -- stylua: ignore
                 if not input then return end
-                zon_info.version = input
+                if input == "" then
+                    util.Warn("sorry, the version of package can not be empty!")
+                    return
+                end
+                ctx.zon_info.version = input
                 render(ctx)
             end)
             return
@@ -300,11 +343,11 @@ local edit_cb = function(ctx)
         if lnum - 1 == 0 then
             vim.ui.input({
                 prompt = "Enter value for minimum zig version: ",
-                default = zon_info.minimum_zig_version,
+                default = ctx.zon_info.minimum_zig_version,
             }, function(input)
                 -- stylua: ignore
                 if not input then return end
-                zon_info.minimum_zig_version = input
+                ctx.zon_info.minimum_zig_version = input
                 render(ctx)
             end)
             return
@@ -319,13 +362,13 @@ local edit_cb = function(ctx)
                 -- stylua: ignore
                 if not input then return end
                 if
-                    zon_info.paths
-                    and #zon_info.paths == 1
-                    and zon_info.paths[1] == ""
+                    ctx.zon_info.paths
+                    and #ctx.zon_info.paths == 1
+                    and ctx.zon_info.paths[1] == ""
                 then
-                    zon_info.paths = { input }
+                    ctx.zon_info.paths = { input }
                 else
-                    table.insert(zon_info.paths, input)
+                    table.insert(ctx.zon_info.paths, input)
                 end
 
                 render(ctx)
@@ -335,11 +378,11 @@ local edit_cb = function(ctx)
         lnum = lnum - 1
 
         if
-            zon_info.paths
-            and #zon_info.paths > 0
-            and zon_info.paths[1] ~= ""
+            ctx.zon_info.paths
+            and #ctx.zon_info.paths > 0
+            and ctx.zon_info.paths[1] ~= ""
         then
-            for _index, val in pairs(zon_info.paths) do
+            for _index, val in pairs(ctx.zon_info.paths) do
                 if lnum - 1 == 0 then
                     vim.ui.input({
                         prompt = "Enter value for path: ",
@@ -347,7 +390,7 @@ local edit_cb = function(ctx)
                     }, function(input)
                         -- stylua: ignore
                         if not input then return end
-                        zon_info.paths[_index] = input
+                        ctx.zon_info.paths[_index] = input
                         render(ctx)
                     end)
                     return
@@ -355,6 +398,8 @@ local edit_cb = function(ctx)
                 lnum = lnum - 1
             end
         end
+
+        -- for dependencies
         if lnum - 1 == 0 then
             vim.ui.input({
                 prompt = "Enter value for new dependency name: ",
@@ -362,18 +407,17 @@ local edit_cb = function(ctx)
             }, function(input)
                 -- stylua: ignore
                 if not input then return end
-                zon_info.dependencies[input] = {
-                    url = "new url",
-                    hash = "hash",
-                }
+                ctx.zon_info.dependencies[input] = {}
                 render(ctx)
             end)
             return
         end
-        local deps_is_empty = vim.tbl_isempty(zon_info.dependencies)
-        if zon_info.dependencies and not deps_is_empty then
+
+        -- for dependency
+        local deps_is_empty = vim.tbl_isempty(ctx.zon_info.dependencies)
+        if ctx.zon_info.dependencies and not deps_is_empty then
             lnum = lnum - 1
-            for name, _info in pairs(zon_info.dependencies) do
+            for name, _info in pairs(ctx.zon_info.dependencies) do
                 if lnum - 1 == 0 then
                     vim.ui.input({
                         prompt = "Enter value for dependency name: ",
@@ -381,41 +425,118 @@ local edit_cb = function(ctx)
                     }, function(input)
                         -- stylua: ignore
                         if not input then return end
-                        zon_info.dependencies[input] = _info
-                        zon_info.dependencies[name] = nil
+                        ctx.zon_info.dependencies[input] = _info
+                        ctx.zon_info.dependencies[name] = nil
                         render(ctx)
                     end)
                     return
                 end
                 lnum = lnum - 1
+
                 if lnum - 1 == 0 then
+                    if _info.url == nil and _info.path == nil then
+                        --- @type "url" | "path" | nil
+                        local choice
+                        local function __input()
+                            vim.ui.input({
+                                -- stylua: ignore
+                                prompt = string.format("Enter value for dependency %s: ", choice),
+                            }, function(input)
+                                -- stylua: ignore
+                                if not input then return end
+                                if choice == "path" then
+                                    ctx.zon_info.dependencies[name].path = input
+                                else
+                                    ctx.zon_info.dependencies[name].url = input
+                                    local _hash = get_hash(input)
+                                    if _hash then
+                                        ctx.zon_info.dependencies[name].hash = _hash
+                                    end
+                                end
+
+                                render(ctx)
+                            end)
+                        end
+                        vim.ui.select({ "url", "path" }, {
+                            prompt = "Select tabs or spaces:",
+                            format_item = function(item)
+                                return "I'd like to choose " .. item
+                            end,
+                        }, function(_tmp)
+                            -- stylua: ignore
+                            if not _tmp then return end
+                            choice = _tmp
+                            __input()
+                        end)
+                        return
+                    end
+                    local is_url = _info.url ~= nil
                     vim.ui.input({
-                        prompt = "Enter value for dependency url: ",
-                        default = _info.url,
+                        prompt = string.format(
+                            "Enter value for dependency %s: ",
+                            is_url and "url" or "path"
+                        ),
+                        default = is_url and _info.url or _info.path,
                     }, function(input)
                         -- stylua: ignore
                         if not input then return end
-                        zon_info.dependencies[name].url = input
-                        local _hash = get_hash(input)
-                        if _hash then
-                            zon_info.dependencies[name].hash = _hash
+                        -- when input empty string
+                        if input == "" then
+                            ctx.zon_info.dependencies[name].url = nil
+                            ctx.zon_info.dependencies[name].path = nil
+                            render(ctx)
+                            return
+                        end
+
+                        if is_url then
+                            ctx.zon_info.dependencies[name].url = input
+                            local _hash = get_hash(input)
+                            if _hash then
+                                ctx.zon_info.dependencies[name].hash = _hash
+                            end
+                        else
+                            ctx.zon_info.dependencies[name].path = input
                         end
                         render(ctx)
                     end)
                     return
                 end
                 lnum = lnum - 1
-                if lnum - 1 == 0 then
-                    vim.ui.input({
-                        prompt = "Enter value for dependency hash: ",
-                        default = _info.hash,
-                    }, function(input)
+
+                if _info.url then
+                    if lnum - 1 == 0 then
+                        vim.ui.input({
+                            prompt = "Enter value for dependency hash: ",
+                            default = _info.hash,
+                        }, function(input)
                         -- stylua: ignore
                         if not input then return end
-                        zon_info.dependencies[name].hash = input
+                            ctx.zon_info.dependencies[name].hash = input
+                            render(ctx)
+                        end)
+                        return
+                    end
+                    lnum = lnum - 1
+                end
+
+                if lnum - 1 == 0 then
+                    vim.ui.select({ "true", "false", "empty" }, {
+                        prompt = "choose whether to lazy:",
+                        format_item = function(item)
+                            return "I'd like to choose " .. item
+                        end,
+                    }, function(choice)
+                        -- stylua: ignore
+                        if not choice then return end
+                        if choice == "true" then
+                            ctx.zon_info.dependencies[name].lazy = true
+                        elseif choice == "false" then
+                            ctx.zon_info.dependencies[name].lazy = false
+                        elseif choice == "empty" then
+                            ctx.zon_info.dependencies[name].lazy = nil
+                        end
                         render(ctx)
                     end)
-                    return
                 end
                 lnum = lnum - 1
             end
@@ -425,16 +546,14 @@ end
 
 --- @param ctx pkg_ctx
 local function sync_cb(ctx)
-    local zon_info = ctx.zon_info
-    local zon_path = ctx.zon_path
     return function()
-        local zon_str = util.wrap_j2zon(zon_info)
+        local zon_str = util.wrap_j2zon(ctx.zon_info)
         local fmted_code = zig_ffi.fmt_zon(zon_str)
         if not fmted_code then
             util.warn("in sync zon step, format zon failed!")
             return
         end
-        zon_path:write(fmted_code, "w", 438)
+        ctx.zon_path:write(fmted_code, "w", 438)
         util.Info("sync zon success!")
     end
 end
@@ -458,8 +577,6 @@ end
 --- @param ctx pkg_ctx
 local function keymap(ctx)
     local buffer = ctx.buffer
-    -- local zon_info = ctx.zon_info
-    -- local zon_path = ctx.zon_path
     api.nvim_buf_set_keymap(buffer, "n", "q", "", {
         noremap = true,
         nowait = true,
