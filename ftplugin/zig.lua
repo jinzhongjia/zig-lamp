@@ -9,12 +9,19 @@ do
         local zls_version = zls.get_zls_version()
         local zls_path = zls.get_zls_path(zls_version)
 
-        if not zls_path or not zls_version then
+        local is_there_zls = zls_path and zls_version
+
+        if not is_there_zls then
+            if vim.g.zls_auto_install then
+                zls.zls_install({})
+                return
+            end
         -- stylua: ignore
         util.Warn("Not found valid zls, please run \"ZigLamp zls install\" to install it.")
             return
         end
 
+        ---@diagnostic disable-next-line: param-type-mismatch
         zls.setup_lspconfig(zls_version)
     end
     if zls.get_current_lsp_zls_version() then
