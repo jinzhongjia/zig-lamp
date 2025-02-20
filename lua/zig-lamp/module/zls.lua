@@ -406,9 +406,8 @@ function M.launch_zls(bufnr)
 end
 
 -- callback for zls install
---- @param params string[]
---- @diagnostic disable-next-line: unused-local
-local function cb_zls_install(params)
+--- @param _ string[]
+function M.zls_install(_)
     local zig_version = zig.version()
     if not zig_version then
         util.Warn("not found zig")
@@ -580,7 +579,7 @@ end
 -- zls install
 -- zls uninstall
 local function set_command()
-    cmd.set_command(cb_zls_install, nil, "zls", "install")
+    cmd.set_command(M.zls_install, nil, "zls", "install")
     -- stylua: ignore
     cmd.set_command(cb_zls_uninstall, complete_zls_uninstall, "zls", "uninstall")
 end
