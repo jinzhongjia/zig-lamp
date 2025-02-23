@@ -48,6 +48,7 @@ local function render_help_text(buffer)
     local content = {
         "Key [q] to quit",
         "Key [i] to add or edit",
+        "Key [o] to switch depdency type(url or path)",
         "Key [<leader>r] to reload from file",
         "Key [d] to delete dependecy or path",
         "Key [<leader>s] to sync changes to file",
@@ -412,11 +413,11 @@ local edit_cb = function(ctx)
             end)
             return
         end
+        lnum = lnum - 1
 
         -- for dependency
         local deps_is_empty = vim.tbl_isempty(ctx.zon_info.dependencies)
         if ctx.zon_info.dependencies and not deps_is_empty then
-            lnum = lnum - 1
             for name, _info in pairs(ctx.zon_info.dependencies) do
                 if lnum - 1 == 0 then
                     vim.ui.input({
@@ -450,7 +451,8 @@ local edit_cb = function(ctx)
                                     ctx.zon_info.dependencies[name].url = input
                                     local _hash = get_hash(input)
                                     if _hash then
-                                        ctx.zon_info.dependencies[name].hash = _hash
+                                        ctx.zon_info.dependencies[name].hash =
+                                            _hash
                                     end
                                 end
 
@@ -574,45 +576,117 @@ local function reload_cb(ctx)
     end
 end
 
+--- @param _ pkg_ctx
+local function quit_cb(_)
+    return function()
+        api.nvim_win_close(0, true)
+    end
+end
+
 --- @param ctx pkg_ctx
-local function keymap(ctx)
-    local buffer = ctx.buffer
-    api.nvim_buf_set_keymap(buffer, "n", "q", "", {
-        noremap = true,
-        nowait = true,
-        desc = "quit for ZigLamp info panel",
-        callback = function()
-            api.nvim_win_close(0, true)
-        end,
-    })
+local function switch_cb(ctx)
+    return function()
+        local lnum = api.nvim_win_get_cursor(0)[1] - 2
+        if lnum < 1 then
+            return
+        end
+        -- for name
+        lnum = lnum - 1
+        -- for version
+        lnum = lnum - 1
+        -- for minimum zig version
+        lnum = lnum - 1
 
-    api.nvim_buf_set_keymap(buffer, "n", "i", "", {
-        noremap = true,
-        nowait = true,
-        callback = edit_cb(ctx),
-        desc = "edit for ZigLamp info panel",
-    })
+        -- for path title
+        lnum = lnum - 1
 
-    api.nvim_buf_set_keymap(buffer, "n", "d", "", {
-        noremap = true,
-        nowait = true,
-        callback = delete_cb(ctx),
-        desc = "delete for ZigLamp info panel",
-    })
+        if
+            ctx.zon_info.paths
+            and #ctx.zon_info.paths > 0
+            and ctx.zon_info.paths[1] ~= ""
+        then
+            for _index, val in pairs(ctx.zon_info.paths) do
+                -- for path
+                lnum = lnum - 1
+            end
+        end
 
-    api.nvim_buf_set_keymap(buffer, "n", "<leader>s", "", {
-        noremap = true,
-        nowait = true,
-        callback = sync_cb(ctx),
-        desc = "sync for ZigLamp info panel",
-    })
+        -- for dependencies
+        lnum = lnum - 1
 
-    api.nvim_buf_set_keymap(buffer, "n", "<leader>r", "", {
-        noremap = true,
-        nowait = true,
-        callback = reload_cb(ctx),
-        desc = "reload for ZigLamp info panel",
-    })
+        -- for dependency
+        local deps_is_empty = vim.tbl_isempty(ctx.zon_info.dependencies)
+        if ctx.zon_info.dependencies and not deps_is_empty then
+            for name, _info in pairs(ctx.zon_info.dependencies) do
+                local _len
+                local is_url = _info.url ~= nil
+                if is_url then
+                    _len = 4
+                else
+                    _len = 3
+                end
+
+                if lnum > 0 and lnum < _len + 1 then
+                    vim.ui.input({
+                        prompt = string.format(
+                            "Enter value for dependency %s: ",
+                            (not is_url) and "url" or "path"
+                        ),
+                    }, function(input)
+                        -- stylua: ignore
+                        if not input then return end
+                        -- when input empty string
+                        if input == "" then
+                            ctx.zon_info.dependencies[name].url = nil
+                            ctx.zon_info.dependencies[name].path = nil
+                            render(ctx)
+                            return
+                        end
+
+                        print(input)
+
+                        if not is_url then
+                            local _hash = get_hash(input)
+                            if _hash then
+                                ctx.zon_info.dependencies[name].url = input
+                                ctx.zon_info.dependencies[name].hash = _hash
+                                ctx.zon_info.dependencies[name].path = nil
+                            end
+                        else
+                            ctx.zon_info.dependencies[name].path = input
+                            ctx.zon_info.dependencies[name].url = nil
+                            ctx.zon_info.dependencies[name].hash = nil
+                        end
+                        render(ctx)
+                    end)
+                    return
+                end
+                lnum = lnum - _len
+            end
+        end
+    end
+end
+
+--- @param ctx pkg_ctx
+local function set_keymap(ctx)
+    -- stylua: ignore
+    --- @type { lhs: string, cb: fun(ctx: pkg_ctx), desc: string }[]
+    local key_metas = {
+        { lhs = "q", desc = "quit for ZigLamp info panel", cb = quit_cb },
+        { lhs = "i", desc = "edit or add for ZigLamp info panel", cb = edit_cb },
+        { lhs = "d", desc = "delete for ZigLamp info panel", cb = delete_cb },
+        { lhs = "o", desc = "switch for ZigLamp info panel", cb = switch_cb },
+        { lhs = "<leader>s", desc = "sync for ZigLamp info panel", cb = sync_cb },
+        { lhs = "<leader>r", desc = "reload for ZigLamp info panel", cb = reload_cb },
+    }
+    for _, key_meta in pairs(key_metas) do
+        api.nvim_buf_set_keymap(ctx.buffer, "n", key_meta.lhs, "", {
+            noremap = true,
+            nowait = true,
+            desc = key_meta.desc,
+            callback = key_meta.cb(ctx),
+        })
+    end
 end
 
 --- @param buffer integer
@@ -657,11 +731,12 @@ local function cb_pkg(_)
     -- window
     -- stylua: ignore
     local _ = nvim_open_win(new_buf, true, { split = "below", style = "minimal" })
-    keymap(ctx)
+    set_keymap(ctx)
 end
 
 function M.setup()
     cmd.set_command(cb_pkg, { "info" }, "pkg")
+    -- The timing of the delay function taking effect
     vim.schedule(function()
         local hl_val = {
             fg = util.adjust_brightness(

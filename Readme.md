@@ -46,6 +46,10 @@ for unix-like user: you need `curl` and `tar`
 
 Oh, of course, you need to install `zig` to build lamp lib for shasum and more features.(_hhh, this sentence seems be meaningless_)
 
+### Notice
+
+Since external libraries are introduced, if the zig compiled libraries appear panic or do not conform to the c API, then neovim will crash. Please open the issue report
+
 ## Install(zig)
 
 1. Add to `build.zig.zon`
