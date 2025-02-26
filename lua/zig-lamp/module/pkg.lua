@@ -37,7 +37,7 @@ local function get_hash(_url)
         util.Error(string.format("failed fetch: %s, code is %d, signal is %d", _url, code, signal))
     end))
     util.Info("fetching: " .. _url)
-    local _result, _ = _tmp:sync(vim.g.zig_fetch_timeout)
+    local _result, _ = _tmp:sync(vim.g.zig_lamp_zig_fetch_timeout)
     if not _result then
         return nil
     end
