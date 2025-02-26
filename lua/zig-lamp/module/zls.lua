@@ -11,6 +11,12 @@ local M = {}
 
 local lsp_is_initialized = false
 
+local if_using_sys_zls = false
+
+function M.if_using_sys_zls()
+    return if_using_sys_zls
+end
+
 --- @type string|nil
 local current_lsp_zls_version = nil
 
@@ -95,7 +101,7 @@ end
 
 --- @param zig_version string
 --- @return string|nil
-function M.get_zls_verion_from_db(zig_version)
+function M.get_zls_version_from_db(zig_version)
     local db = get_db()
     return db.version_map[zig_version]
 end
@@ -103,7 +109,7 @@ end
 -- please call save db after using this function
 --- @param zig_version string
 --- @param zls_version string
-local function set_zls_verion_to_db(zig_version, zls_version)
+local function set_zls_version_to_db(zig_version, zls_version)
     local db = get_db()
     db.version_map[zig_version] = zls_version
 end
@@ -210,7 +216,7 @@ function M.get_zls_version()
     end
 
     -- get zls version from db
-    local zls_version = M.get_zls_verion_from_db(zig_version)
+    local zls_version = M.get_zls_version_from_db(zig_version)
     if not zls_version then
         return nil
     end
@@ -232,10 +238,15 @@ function M.get_zls_path(zls_version)
     return vim.fs.normalize(zls_path:absolute())
 end
 
+-- whether exist system zls
+function M.if_sys_zls()
+    return vim.fn.executable("zls") == 1
+end
+
 -- get zls version
 --- @return string|nil
 function M.sys_version()
-    if vim.fn.executable("zls") == 0 then
+    if not M.if_sys_zls() then
         return nil
     end
     --- @diagnostic disable-next-line: missing-fields
@@ -285,7 +296,7 @@ local function get_meta_json(zig_version, callback)
         --- @type zlsMeta|zlsMetaErr
         local info = vim.fn.json_decode(response.body)
         if not info.code then
-            set_zls_verion_to_db(zig_version, info.version)
+            set_zls_version_to_db(zig_version, info.version)
             save_db()
         end
         callback(info)
@@ -370,17 +381,22 @@ local function remove_zls_tmp(zls_version)
 end
 
 local function lsp_on_new_config(new_config, new_root_dir)
-    local _zls_version = M.get_zls_version()
-    --- @type string
-    ---@diagnostic disable-next-line: assign-type-mismatch
-    local _zls_path = M.get_zls_path(_zls_version)
-    new_config.cmd = { _zls_path }
+    local _zls_path = "zls"
+
+    if not if_using_sys_zls then
+        local _zls_version = M.get_zls_version()
+        --- @type string
+        ---@diagnostic disable-next-line: assign-type-mismatch
+        _zls_path = M.get_zls_path(_zls_version)
+        new_config.cmd = { _zls_path }
+    end
+
     if vim.fn.filereadable(vim.fs.joinpath(new_root_dir, "zls.json")) ~= 0 then
         new_config.cmd = { _zls_path, "--config-path", "zls.json" }
     end
 end
 
---- @param zls_version string
+--- @param zls_version string|nil
 function M.setup_lspconfig(zls_version)
     local lspconfig = require("lspconfig")
 
@@ -390,8 +406,8 @@ function M.setup_lspconfig(zls_version)
     lsp_opt.on_new_config = lsp_on_new_config
 
     lspconfig.zls.setup(lsp_opt)
-
     M.set_current_lsp_zls_version(zls_version)
+    if_using_sys_zls = zls_version == nil
 
     M.lsp_inited()
 end
@@ -417,7 +433,7 @@ function M.zls_install(_)
 
     local is_local = true
 
-    local db_zls_version = M.get_zls_verion_from_db(zig_version)
+    local db_zls_version = M.get_zls_version_from_db(zig_version)
     if not db_zls_version then
         util.Info("not found zls version in db, try to get meta json")
         is_local = false
@@ -444,11 +460,12 @@ function M.zls_install(_)
 
     --- @param zls_version string
     local function after_install(zls_version)
-        -- when not inited, setup lspconfig
-        if not M.lsp_if_inited() then
-            M.setup_lspconfig(zls_version)
+        -- when inited, return
+        if M.lsp_if_inited() then
+            return
         end
 
+        M.setup_lspconfig(zls_version)
         local buf_lists = vim.api.nvim_list_bufs()
         for _, bufnr in pairs(buf_lists) do
             -- stylua: ignore

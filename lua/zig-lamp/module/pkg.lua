@@ -48,9 +48,9 @@ local function render_help_text(buffer)
     local content = {
         "Key [q] to quit",
         "Key [i] to add or edit",
-        "Key [o] to switch depdency type(url or path)",
+        "Key [o] to switch dependency type(url or path)",
         "Key [<leader>r] to reload from file",
-        "Key [d] to delete dependecy or path",
+        "Key [d] to delete dependency or path",
         "Key [<leader>s] to sync changes to file",
     }
 
@@ -245,6 +245,7 @@ local function render(ctx)
     end
 
     render_help_text(buffer)
+    nvim_set_option_value("modifiable", false, { buf = buffer })
 end
 
 --- @param ctx pkg_ctx
@@ -605,7 +606,7 @@ local function switch_cb(ctx)
             and #ctx.zon_info.paths > 0
             and ctx.zon_info.paths[1] ~= ""
         then
-            for _index, val in pairs(ctx.zon_info.paths) do
+            for _, _ in pairs(ctx.zon_info.paths) do
                 -- for path
                 lnum = lnum - 1
             end

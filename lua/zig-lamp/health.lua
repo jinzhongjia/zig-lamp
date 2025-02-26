@@ -59,7 +59,9 @@ local function check_lib()
     if zig_ffi.get_lamp() then
         health.ok("found lib")
     else
-        health.error('not found lib, you can use command ":ZigLamp build" to build library')
+        health.error(
+            'not found lib, you can use command ":ZigLamp build" to build library'
+        )
     end
 end
 
