@@ -4,6 +4,10 @@ on:
     push:
         branches:
             - "*"
+        paths:
+            - "**.zig"
+            - "**.zig.zon"
+            - "**.yml"
     schedule:
         - cron: "0 2 * * *"
     workflow_dispatch:
