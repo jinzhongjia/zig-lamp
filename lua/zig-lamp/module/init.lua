@@ -38,6 +38,9 @@ local function cb_info()
     if current_lsp_zls then
         -- stylua: ignore
         table.insert(content, "  lsp using version: " .. zls.get_current_lsp_zls_version())
+    elseif zls.if_using_sys_zls() then
+        local sys_zls = zls.sys_version()
+        table.insert(content, "  lsp using version: sys " .. sys_zls)
     end
     -- stylua: ignore
     if #list > 0 then table.insert(content, "  local versions:") end
