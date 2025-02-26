@@ -29,13 +29,13 @@ If you are using `lazy.nvim`, just add this to your configuration file:
     -- Here is default config, in general you no need to set these options
     init = function()
         -- if set this Non-negative value, zig-lamp will automatically install zls when open zig file.
-        vim.g.zls_auto_install = nil
+        vim.g.zig_lamp_zls_auto_install = nil
         -- if set this Non-negative value, zig-lamp will fallback system zls when not found downloaded zls.
-        vim.g.fall_back_sys_zls = nil
+        vim.g.zig_lamp_fall_back_sys_zls = nil
         -- this is setting for zls with lspconfig, the opts you need to see document of zls and lspconfig.
-        vim.g.zls_lsp_opt = {}
+        vim.g.zig_lamp_zls_lsp_opt = {}
         vim.g.zig_lamp_pkg_help_fg = "#CF5C00"
-        vim.g.zig_fetch_timeout = 5000
+        vim.g.zig_lamp_zig_fetch_timeout = 5000
     end,
 }
 ```

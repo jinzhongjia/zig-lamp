@@ -11,8 +11,8 @@ do
 
         local is_there_zls = zls_path and zls_version
 
-        if (not is_there_zls) and not vim.g.fall_back_sys_zls then
-            if vim.g.zls_auto_install then
+        if (not is_there_zls) and not vim.g.zig_lamp_fall_back_sys_zls then
+            if vim.g.zig_lamp_zls_auto_install then
                 zls.zls_install({})
                 return
             end

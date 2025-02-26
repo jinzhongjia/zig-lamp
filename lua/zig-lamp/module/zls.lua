@@ -401,7 +401,7 @@ function M.setup_lspconfig(zls_version)
     local lspconfig = require("lspconfig")
 
     -- support use user's config
-    local lsp_opt = vim.g.zls_lsp_opt or {}
+    local lsp_opt = vim.g.zig_lamp_zls_lsp_opt or {}
     lsp_opt.autostart = false
     lsp_opt.on_new_config = lsp_on_new_config
 
