@@ -19,7 +19,7 @@ If you are using `lazy.nvim`, just add this to your configuration file:
 {
     "jinzhongjia/zig-lamp",
     event = "VeryLazy",
-    build = ":ZigLamp build sync"
+    build = ":ZigLamp build sync",
     -- or ":ZigLamp build" for async build, the build job will return immediately
     -- or ":ZigLamp build sync 20000" for sync build with specified timeout 20000ms
     dependencies = {
