@@ -8,7 +8,9 @@ For zig, you can use this plugin to parse zig build dependency from `build.zig.z
 
 ## Install(neovim)
 
-For neovim user, please use neovim `0.10`!
+> for `0.13.0` and previous version, use `0.0.1`!
+
+For neovim user, please use neovim `0.10` and zig `0.14.0`!
 
 this plugin's dependency is [plenary.nvim](https://github.com/nvim-lua/plenary.nvim) and [lspconfig](https://github.com/neovim/nvim-lspconfig)!
 
@@ -45,8 +47,6 @@ If you are using `lazy.nvim`, just add this to your configuration file:
 for windows user: you need `curl` and `unzip`
 
 for unix-like user: you need `curl` and `tar`
-
-Oh, of course, you need to install `zig` to build lamp lib for shasum and more features.(_hhh, this sentence seems be meaningless_)
 
 ### Notice
 
