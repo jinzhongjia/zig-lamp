@@ -56,10 +56,13 @@ end
 function M.wrap_j2zon(info)
     local res = ""
     res = res .. ".{"
-    res = res .. ".name = " .. M.data2zon(info.name or "") .. ","
+    res = res .. ".name = ." .. (info.name or "") .. ","
     res = res .. ".version = " .. M.data2zon(info.version or "") .. ","
-    -- stylua: ignore
-    res = res .. ".minimum_zig_version = " .. M.data2zon(info.minimum_zig_version or "") .. ","
+    res = res .. ".fingerprint = " .. info.fingerprint .. ","
+    if info.minimum_zig_version then
+        -- stylua: ignore
+        res = res .. ".minimum_zig_version = " .. M.data2zon(info.minimum_zig_version or "") .. ","
+    end
     -- stylua: ignore
     res = res .. ".dependencies = ".. M.data2zon(info.dependencies or {}) .. ","
     res = res .. ".paths=" .. M.data2zon(info.paths or {}) .. ","

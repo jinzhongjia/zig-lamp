@@ -1,7 +1,8 @@
 .{
-    .name = "zig-lamp",
-    .version = "0.0.1",
-    .minimum_zig_version = "0.13.0",
+    .name = .zig_lamp,
+    .version = "0.0.2",
+    .fingerprint = 0x519db185c03fa148,
+    .minimum_zig_version = "0.14.0",
     .dependencies = .{},
     .paths = .{
         "build.zig",

@@ -105,6 +105,17 @@ local function render(ctx)
         col_end = str_len(version_str),
     })
 
+    -- for fingerprint
+    local fingerprint_str = "  Fingerprint: "
+    table.insert(content, fingerprint_str .. (zon_info.fingerprint or "[none]"))
+    current_lnum = current_lnum + 1
+    table.insert(highlight, {
+        group = "Title",
+        line = current_lnum,
+        col_start = 0,
+        col_end = str_len(fingerprint_str),
+    })
+
     local min_version = zon_info.minimum_zig_version or "[none]"
     local min_version_str = "  Minimum zig version: "
     table.insert(content, min_version_str .. min_version)
@@ -258,6 +269,8 @@ local function delete_cb(ctx)
         end
         lnum = lnum - 4
 
+        lnum = lnum - 1
+
         if
             ctx.zon_info.paths
             and #ctx.zon_info.paths > 0
@@ -341,6 +354,24 @@ local edit_cb = function(ctx)
         end
         lnum = lnum - 1
 
+        -- for fingerprint
+        if lnum - 1 == 0 then
+            vim.ui.input({
+                prompt = "Enter value for fingerprint: ",
+                default = ctx.zon_info.fingerprint,
+            }, function(input)
+                -- stylua: ignore
+                if not input then return end
+                if input == "" then
+                    ctx.zon_info.fingerprint = nil
+                else
+                    ctx.zon_info.fingerprint = input
+                end
+                render(ctx)
+            end)
+        end
+        lnum = lnum - 1
+
         -- for minimum zig version
         if lnum - 1 == 0 then
             vim.ui.input({
@@ -349,7 +380,11 @@ local edit_cb = function(ctx)
             }, function(input)
                 -- stylua: ignore
                 if not input then return end
-                ctx.zon_info.minimum_zig_version = input
+                if input == "" then
+                    ctx.zon_info.minimum_zig_version = nil
+                else
+                    ctx.zon_info.minimum_zig_version = input
+                end
                 render(ctx)
             end)
             return
@@ -595,6 +630,8 @@ local function switch_cb(ctx)
         lnum = lnum - 1
         -- for version
         lnum = lnum - 1
+        -- for fingerprint
+        lnum = lnum - 1
         -- for minimum zig version
         lnum = lnum - 1
 
@@ -643,8 +680,6 @@ local function switch_cb(ctx)
                             render(ctx)
                             return
                         end
-
-                        print(input)
 
                         if not is_url then
                             local _hash = get_hash(input)
