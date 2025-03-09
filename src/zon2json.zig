@@ -45,6 +45,15 @@ fn stringify(allocator: std.mem.Allocator, writer: anytype, ast: std.zig.Ast, id
         if (try stringifyFieldName(allocator, ast, idx)) |name| {
             defer allocator.free(name);
             try writer.print("{s}:", .{name});
+            if (std.mem.eql(u8, name, "\"fingerprint\"")) {
+                const slice = ast.tokenSlice(ast.nodes.items(.main_token)[idx]);
+
+                const v = try std.fmt.allocPrint(allocator, "\"{s}\"", .{slice});
+                defer allocator.free(v);
+
+                try writer.writeAll(v);
+                return;
+            }
         }
     }
 

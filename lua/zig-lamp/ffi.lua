@@ -92,6 +92,7 @@ end
 --- @class ZigBuildZon
 --- @field name string
 --- @field version string
+--- @field fingerprint string
 --- @field minimum_zig_version string|nil
 --- @field dependencies { [string] : ZigDependency }
 --- @field paths string[]
@@ -110,10 +111,10 @@ function M.get_build_zon_info(file_path)
     if not _p:exists() then return nil end
 
     local res = ffi.string(zig_lamp.get_build_zon_info(file_path))
-    zig_lamp.free_build_zon_info()
     if res == "" then
         return nil
     end
+    zig_lamp.free_build_zon_info()
     local _tmp = vim.fn.json_decode(res)
     return _tmp
 end
@@ -134,10 +135,10 @@ function M.fmt_zon(source_code)
     -- stylua: ignore
     if not zig_lamp then return nil end
     local res = ffi.string(zig_lamp.fmt_zon(source_code))
-    zig_lamp.free_fmt_zon()
     if res == "" then
         return nil
     end
+    zig_lamp.free_fmt_zon()
     return res
 end
 
