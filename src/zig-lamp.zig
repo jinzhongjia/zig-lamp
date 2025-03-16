@@ -6,8 +6,6 @@ const fmtzon = @import("fmtzon.zig");
 const fs = std.fs;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 
-var gpa = std.heap.GeneralPurposeAllocator(.{}){};
-
 // In real world, this may set to page_size, usually it's 4096.
 const BUF_SIZE = 4096;
 const empty_str = "";
@@ -54,16 +52,14 @@ export fn check_shasum(file_path: [*c]const u8, shasum: [*c]const u8) bool {
     return true;
 }
 
-var _allocator: ?std.mem.Allocator = null;
+const _allocator: std.mem.Allocator = std.heap.smp_allocator;
 var json: ?[:0]const u8 = null;
 
 export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
-    if (_allocator == null)
-        _allocator = gpa.allocator();
 
     // free previous json
     if (json) |_json|
-        _allocator.?.free(_json);
+        _allocator.free(_json);
 
     // get file path length
     const file_path_len = std.mem.len(file_path);
@@ -72,10 +68,10 @@ export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
     defer file.close();
 
     // no need to call deinit
-    var arr = std.ArrayList(u8).init(_allocator.?);
+    var arr = std.ArrayList(u8).init(_allocator);
 
     zon2json.parse(
-        _allocator.?,
+        _allocator,
         file.reader().any(),
         arr.writer(),
         void{},
@@ -90,23 +86,19 @@ export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
 }
 
 export fn free_build_zon_info() void {
-    if (_allocator == null) return;
     if (json) |_json| {
-        _allocator.?.free(_json);
+        _allocator.free(_json);
         json = null;
     }
 }
 
 export fn fmt_zon(source_code: [*c]const u8) [*c]const u8 {
-    if (_allocator == null)
-        _allocator = gpa.allocator();
-
     if (fmtzon.fmted_source) |_tmp|
-        _allocator.?.free(_tmp);
+        _allocator.free(_tmp);
 
     const source_code_len = std.mem.len(source_code);
 
-    fmtzon.fmted_source = fmtzon.fmtZon(source_code[0..source_code_len :0], _allocator.?) catch return empty_str;
+    fmtzon.fmted_source = fmtzon.fmtZon(source_code[0..source_code_len :0], _allocator) catch return empty_str;
 
     if (fmtzon.fmted_source == null) return empty_str;
 
@@ -114,9 +106,8 @@ export fn fmt_zon(source_code: [*c]const u8) [*c]const u8 {
 }
 
 export fn free_fmt_zon() void {
-    if (_allocator == null) return;
     if (fmtzon.fmted_source) |_tmp| {
-        _allocator.?.free(_tmp);
+        _allocator.free(_tmp);
         fmtzon.fmted_source = null;
     }
 }
