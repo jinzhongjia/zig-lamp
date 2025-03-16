@@ -1,5 +1,6 @@
 //! this file is from repo https://github.com/Cloudef/zig2nix
 const std = @import("std");
+const builtin = @import("builtin");
 
 fn stringifyFieldName(allocator: std.mem.Allocator, ast: std.zig.Ast, idx: std.zig.Ast.Node.Index) !?[]const u8 {
     if (ast.firstToken(idx) < 2) return null;
@@ -13,7 +14,8 @@ fn stringifyFieldName(allocator: std.mem.Allocator, ast: std.zig.Ast, idx: std.z
 }
 
 fn stringifyValue(allocator: std.mem.Allocator, ast: std.zig.Ast, idx: std.zig.Ast.Node.Index) !?[]const u8 {
-    const slice = ast.tokenSlice(ast.nodes.items(.main_token)[idx]);
+    const index = if (comptime builtin.zig_version.minor > 14) @intFromEnum(idx) else idx;
+    const slice = ast.tokenSlice(ast.nodes.items(.main_token)[index]);
     if (slice[0] == '\'') {
         switch (std.zig.parseCharLiteral(slice)) {
             .success => |v| return try std.json.stringifyAlloc(allocator, v, .{}),
@@ -46,7 +48,8 @@ fn stringify(allocator: std.mem.Allocator, writer: anytype, ast: std.zig.Ast, id
             defer allocator.free(name);
             try writer.print("{s}:", .{name});
             if (std.mem.eql(u8, name, "\"fingerprint\"")) {
-                const slice = ast.tokenSlice(ast.nodes.items(.main_token)[idx]);
+                const index = if (builtin.zig_version.minor > 14) @intFromEnum(idx) else idx;
+                const slice = ast.tokenSlice(ast.nodes.items(.main_token)[index]);
 
                 const v = try std.fmt.allocPrint(allocator, "\"{s}\"", .{slice});
                 defer allocator.free(v);
@@ -110,5 +113,5 @@ pub fn parse(allocator: std.mem.Allocator, reader: std.io.AnyReader, writer: any
         return error.ParseFailed;
     }
 
-    try stringify(allocator, writer, ast, ast.nodes.items(.data)[0].lhs, false);
+    try stringify(allocator, writer, ast, if (builtin.zig_version.minor > 14) ast.nodes.items(.data)[0].node else ast.nodes.items(.data)[0].lhs, false);
 }
