@@ -1,7 +1,14 @@
 local M = {}
 
 -- TODO: this need to test on macos
-M.arch = vim.uv.os_uname().machine
+local arch = vim.uv.os_uname().machine
+
+function M.arch()
+    if arch == "arm64" then
+        return "aarch64"
+    end
+    return arch
+end
 
 if vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
     M.sys = "windows"

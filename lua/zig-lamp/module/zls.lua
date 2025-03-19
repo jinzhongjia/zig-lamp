@@ -368,7 +368,7 @@ end
 --- @param meta zlsMeta
 --- @return zlsMetaArchInfo
 local function get_arch_info(meta)
-    local _key = util.arch .. "-" .. util.sys
+    local _key = util.arch() .. "-" .. util.sys
     return meta[_key]
 end
 
