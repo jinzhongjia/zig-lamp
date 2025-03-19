@@ -19,6 +19,9 @@ local library_path = vim.fs.normalize((function()
     if package.config:sub(1, 1) == "\\" then
         return vim.fs.joinpath(plugin_path, "zig-out/bin/zig-lamp.dll")
     else
+        if vim.fn.has("macunix") == 1 then
+            return vim.fs.joinpath(plugin_path, "zig-out/lib/libzig-lamp.dylib")
+        end
         return vim.fs.joinpath(plugin_path, "zig-out/lib/libzig-lamp.so")
     end
 end)())
