@@ -30,18 +30,24 @@ local function get_hash(_url)
     if vim.fn.executable("zig") == 0 then
         return nil
     end
-    --- @diagnostic disable-next-line: missing-fields
-    local _tmp = job:new({ command = "zig", args = { "fetch", _url } })
-    _tmp:after_failure(vim.schedule_wrap(function(_, code, signal)
-        -- stylua: ignore
-        util.Error(string.format("failed fetch: %s, code is %d, signal is %d", _url, code, signal))
-    end))
-    util.Info("fetching: " .. _url)
-    local _result, _ = _tmp:sync(vim.g.zig_lamp_zig_fetch_timeout)
-    if not _result then
+    util.Info("start get package hash")
+    local _handle = vim.system({ "zig", "fetch", _url }, { text = true })
+    local result = _handle:wait()
+    if result.code ~= 0 then
+        util.Error(
+            string.format(
+                "failed fetch: %s, code is %d, signal is %d",
+                _url,
+                result.code,
+                result.signal
+            )
+        )
         return nil
     end
-    return _result[1]
+    if result.stdout then
+        return vim.trim(result.stdout)
+    end
+    return nil
 end
 
 local function render_help_text(buffer)
