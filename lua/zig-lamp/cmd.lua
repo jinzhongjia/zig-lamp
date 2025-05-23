@@ -26,7 +26,6 @@ local command = {
 --- @param complete cmdComplete|nil
 --- @return subCmd
 local function create_subCmd(cmd, cb, complete)
-    --- @type subCmd
     return { cmd = cmd, cb = cb, sub = {}, complete = complete }
 end
 
@@ -37,51 +36,59 @@ local function get_command(cmds)
     if #cmds == 0 then
         return command, -2
     end
-    --- @param __sub_cmd subCmd
-    --- @param __cmds string[]
-    --- @param __index number
-    local function __tmp(__sub_cmd, __cmds, __index)
-        local _cmd = __cmds[1]
-        for _, ele in pairs(__sub_cmd.sub) do
-            if ele.cmd and ele.cmd == _cmd then
-                if #__cmds == 1 then
-                    return ele, 0
+
+    local current_cmd = command
+    local depth = 0
+
+    for i, cmd_name in ipairs(cmds) do
+        local found = false
+        for _, sub_cmd in pairs(current_cmd.sub) do
+            if sub_cmd.cmd == cmd_name then
+                if i == #cmds then
+                    return sub_cmd, 0
                 end
-                if vim.tbl_isempty(ele.sub) then
-                    return ele, __index
+                if vim.tbl_isempty(sub_cmd.sub) then
+                    return sub_cmd, depth + 1
                 end
-                table.remove(__cmds, 1)
-                return __tmp(ele, __cmds, __index + 1)
+                current_cmd = sub_cmd
+                depth = depth + 1
+                found = true
+                break
             end
         end
-        return nil, -1
+        if not found then
+            return nil, -1
+        end
     end
 
-    return __tmp(command, cmds, 1)
+    return current_cmd, 0
 end
 
 --- @param cmd subCmd
 --- @return string[]
 local function get_cmd_after_keys(cmd)
-    --- @type string[]
-    local __res = {}
-    for _, ele in pairs(cmd.sub) do
-        if ele.cmd then
-            table.insert(__res, ele.cmd)
+    local result = {}
+
+    -- Add sub commands
+    for _, sub_cmd in pairs(cmd.sub) do
+        if sub_cmd.cmd then
+            table.insert(result, sub_cmd.cmd)
         end
     end
-    if type(cmd.complete) == "function" then
-        local _complete = cmd.complete()
-        for _, __complete in pairs(_complete) do
-            table.insert(__res, __complete)
-        end
-    elseif type(cmd.complete) == "table" then
-        ---@diagnostic disable-next-line: param-type-mismatch
-        for _, _complete in pairs(cmd.complete) do
-            table.insert(__res, _complete)
+
+    -- Add completions
+    local completions = cmd.complete
+    if type(completions) == "function" then
+        completions = completions()
+    end
+
+    if type(completions) == "table" then
+        for _, completion in pairs(completions) do
+            table.insert(result, completion)
         end
     end
-    return __res
+
+    return result
 end
 
 --- @param cb cmdCb
@@ -89,98 +96,98 @@ end
 --- @param ...string
 function M.set_command(cb, complete, ...)
     local cmds = { ... }
-    --- @type subCmd[]
-    local _sub_cmd = command.sub
-    for _index, _cmd in pairs(cmds) do
-        for _, ele_sub_cmd in pairs(_sub_cmd) do
-            if ele_sub_cmd.cmd and ele_sub_cmd.cmd == _cmd then
-                if _index == #cmds then
-                    ele_sub_cmd.cb = cb
-                end
-                _sub_cmd = ele_sub_cmd.sub
-                goto continue
+    local current_sub = command.sub
+
+    for i, cmd_name in pairs(cmds) do
+        local found_cmd = nil
+
+        -- Find existing command
+        for _, sub_cmd in pairs(current_sub) do
+            if sub_cmd.cmd == cmd_name then
+                found_cmd = sub_cmd
+                break
             end
         end
-        if _index == #cmds then
-            table.insert(_sub_cmd, create_subCmd(_cmd, cb, complete))
-        else
-            table.insert(_sub_cmd, create_subCmd(_cmd))
-        end
-        do
-            _sub_cmd = _sub_cmd[#_sub_cmd].sub
-        end
 
-        ::continue::
+        -- Create or update command
+        if found_cmd then
+            if i == #cmds then
+                found_cmd.cb = cb
+                found_cmd.complete = complete
+            end
+            current_sub = found_cmd.sub
+        else
+            local new_cmd = create_subCmd(
+                cmd_name,
+                i == #cmds and cb or nil,
+                i == #cmds and complete or nil
+            )
+            table.insert(current_sub, new_cmd)
+            current_sub = new_cmd.sub
+        end
     end
 end
 
 --- @param cmds string[]
 function M.delete_command(cmds)
-    --- @type subCmd[]
-    local _sub_cmd = command.sub
-    for _index, _cmd in pairs(cmds) do
-        for _sub_cmd_index, ele_sub_cmd in pairs(_sub_cmd) do
-            if ele_sub_cmd.cmd and ele_sub_cmd.cmd == _cmd then
-                if _index == #cmds then
-                    table.remove(_sub_cmd, _sub_cmd_index)
+    local current_sub = command.sub
+
+    for i, cmd_name in pairs(cmds) do
+        for j, sub_cmd in pairs(current_sub) do
+            if sub_cmd.cmd == cmd_name then
+                if i == #cmds then
+                    table.remove(current_sub, j)
                     return
                 end
-                _sub_cmd = ele_sub_cmd.sub
+                current_sub = sub_cmd.sub
+                break
             end
         end
     end
 end
 
-local complete_command = function(_, cmdline, _)
+local function complete_command(_, cmdline, _)
     local args = fn.split(cmdline)
-    table.remove(args, 1)
+    table.remove(args, 1) -- Remove command name
 
-    local _sub_cmd, meta_result = get_command(args)
-    if meta_result == -1 or meta_result > 1 or not _sub_cmd then
+    local sub_cmd, meta_result = get_command(vim.deepcopy(args))
+    if meta_result == -1 or meta_result > 1 or not sub_cmd then
         return {}
     end
 
-    local candidates = get_cmd_after_keys(_sub_cmd)
+    local candidates = get_cmd_after_keys(sub_cmd)
     if #args == 0 then
         return candidates
     end
 
     local last_arg = args[#args]
-    table.remove(args)
-
-    --- @type string[]
-    local _result = {}
+    local filtered = {}
 
     for _, candidate in ipairs(candidates) do
-        if candidate:find("^" .. last_arg) then
-            table.insert(_result, candidate)
+        if candidate:find("^" .. vim.pesc(last_arg)) then
+            table.insert(filtered, candidate)
         end
     end
 
-    if #_result == 0 then
-        return candidates
-    end
-    return _result
+    return #filtered > 0 and filtered or candidates
 end
 
 --- @param info commandCallback
 local function handle_command(info)
-    local _tbl_1 = vim.deepcopy(info.fargs)
-    local _tbl_2 = vim.deepcopy(info.fargs)
-    local _sub_cmd, meta_result = get_command(_tbl_1)
+    local args_copy = vim.deepcopy(info.fargs)
+    local sub_cmd, meta_result = get_command(args_copy)
+
     if meta_result == -1 then
         util.Info("not exist function")
         return
-    elseif meta_result == 0 then
-        table.remove(_tbl_2, 1)
-    elseif meta_result > 0 then
-        while meta_result > 0 do
-            table.remove(_tbl_2, 1)
-            meta_result = meta_result - 1
-        end
     end
-    if _sub_cmd and _sub_cmd.cb then
-        _sub_cmd.cb(_tbl_2)
+
+    -- Calculate how many arguments to remove
+    local args_to_remove = math.max(0, meta_result)
+    local params = vim.list_slice(info.fargs, args_to_remove + 1)
+
+    if sub_cmd and sub_cmd.cb then
+        sub_cmd.cb(params)
     end
 end
 
