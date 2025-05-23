@@ -1,10 +1,5 @@
-local cmd = require("zig-lamp.cmd")
-local module = require("zig-lamp.module")
-
-cmd.init_command()
-
-for _, _e in pairs(module) do
-    if _e.setup then
-        _e.setup()
-    end
-end
+require("zig-lamp.cmd").init_command()
+require("zig-lamp.module").setup()
+require("zig-lamp.module.pkg").setup()
+require("zig-lamp.module.zig").setup()
+require("zig-lamp.module.zls").setup()
