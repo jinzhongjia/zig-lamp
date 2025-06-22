@@ -95,7 +95,7 @@ end
 -- Convert build.zon info to ZON format
 function M.wrap_j2zon(info)
     local components = {
-        ".name = ." .. (info.name or ""),
+        ".name = " .. M.data2zon(info.name or ""),
         ".version = " .. M.data2zon(info.version or ""),
         ".fingerprint = " .. info.fingerprint,
     }
