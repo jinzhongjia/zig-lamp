@@ -30,7 +30,7 @@ local function check_curl()
 end
 
 local function check_tar()
-    local util = require("zig-lamp.util")
+    local util = require("zig-lamp.core.core_util")
     if util.sys ~= "windows" then
         health.start("check tar")
         if vim.fn.executable("tar") == 1 then
@@ -42,7 +42,7 @@ local function check_tar()
 end
 
 local function check_unzip()
-    local util = require("zig-lamp.util")
+    local util = require("zig-lamp.core.core_util")
     if util.sys == "windows" then
         health.start("check unzip")
         if vim.fn.executable("unzip") == 1 then
@@ -55,7 +55,7 @@ end
 
 local function check_lib()
     health.start("check dynamic library")
-    local zig_ffi = require("zig-lamp.ffi")
+    local zig_ffi = require("zig-lamp.core.core_ffi")
     if zig_ffi.get_lamp() then
         health.ok("found lib")
     else

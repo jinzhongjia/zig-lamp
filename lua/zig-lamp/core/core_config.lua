@@ -1,3 +1,7 @@
+local vim = vim
+-- core_config.lua
+-- 配置相关，原 config.lua 内容迁移于此
+
 local fs, fn = vim.fs, vim.fn
 
 local M = {}

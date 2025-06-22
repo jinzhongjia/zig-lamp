@@ -1,3 +1,7 @@
+local vim = vim
+-- core_util.lua
+-- 基础工具函数，原 util.lua 内容迁移于此
+
 local M = {}
 
 -- TODO: this need to test on macos
@@ -29,21 +33,18 @@ local _notify_public_message = "[ZigLamp]: "
 -- Error notify
 --- @param message string
 function M.Error(message)
-    -- stylua: ignore
     vim.api.nvim_notify(_notify_public_message .. message, vim.log.levels.ERROR, {})
 end
 
 -- Info notify
 --- @param message string
 function M.Info(message)
-    -- stylua: ignore
     vim.api.nvim_notify(_notify_public_message .. message, vim.log.levels.INFO, {})
 end
 
 -- Warn notify
 --- @param message string
 function M.Warn(message)
-    -- stylua: ignore
     vim.api.nvim_notify(_notify_public_message .. message, vim.log.levels.WARN, {})
 end
 
@@ -61,24 +62,19 @@ end
 --- @param info ZigBuildZon
 --- @return string
 function M.wrap_j2zon(info)
-    local res = ""
-    res = res .. ".{"
+    local res = ".{"
     res = res .. ".name = ." .. (info.name or "") .. ","
     res = res .. ".version = " .. M.data2zon(info.version or "") .. ","
     res = res .. ".fingerprint = " .. info.fingerprint .. ","
     if info.minimum_zig_version then
-        -- stylua: ignore
         res = res .. ".minimum_zig_version = " .. M.data2zon(info.minimum_zig_version or "") .. ","
     end
-    -- stylua: ignore
     res = res .. ".dependencies = ".. M.data2zon(info.dependencies or {}) .. ","
     res = res .. ".paths=" .. M.data2zon(info.paths or {}) .. ","
     res = res .. "}"
     return res
 end
 
--- whether the str is legal for zig
---- @param str string
 local function str_if_legal(str)
     local result = string.find(str, "-") == nil
     local first_char = string.sub(str, 1, 1)
@@ -86,7 +82,6 @@ local function str_if_legal(str)
     return result
 end
 
--- convert lua type to a zon string, but now we can not format the string
 function M.data2zon(obj)
     local res = ""
     if type(obj) == "table" then
