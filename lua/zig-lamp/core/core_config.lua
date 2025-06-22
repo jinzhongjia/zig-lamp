@@ -1,16 +1,18 @@
-local vim = vim
--- core_config.lua
--- 配置相关，原 config.lua 内容迁移于此
+-- Configuration management for zig-lamp plugin
+-- Defines data paths and version information
 
+local vim = vim
 local fs, fn = vim.fs, vim.fn
 
 local M = {}
 
----@diagnostic disable-next-line: param-type-mismatch
+-- Plugin data directory in Neovim's data path
 M.data_path = fs.normalize(fs.joinpath(fn.stdpath("data"), "zig-lamp"))
 
+-- Temporary files directory
 M.tmp_path = fs.normalize(fs.joinpath(M.data_path, "tmp"))
 
+-- Plugin version
 M.version = "0.0.1"
 
 return M
