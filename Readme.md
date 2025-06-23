@@ -1,90 +1,275 @@
 # zig-lamp
 
-This is a plugin for neovim and a library for zig.
+A comprehensive Neovim plugin and Zig library for enhanced Zig development experience.
 
-For neovim, you can install zls easily through this plugin.
+**zig-lamp** provides seamless ZLS (Zig Language Server) management for Neovim and powerful build.zig.zon parsing capabilities for Zig projects.
 
-For zig, you can use this plugin to parse zig build dependency from `build.zig.zon`.
+## Features
 
-## Install(neovim)
+### For Neovim Users
+- **Automatic ZLS Management**: Download, install, and manage ZLS versions automatically
+- **Smart Version Matching**: Automatically matches ZLS versions with your Zig installation
+- **Package Manager UI**: Visual interface for managing Zig dependencies in build.zig.zon
+- **Build Integration**: Execute Zig build commands directly from Neovim
+- **Project Info Panel**: Display comprehensive project and toolchain information
+- **Zero Configuration**: Works out of the box with sensible defaults
 
-> for `0.13.0` and previous version, use `0.0.1`!
+### For Zig Developers
+- **ZON Parser**: Parse build.zig.zon files into JSON format
+- **Hash Verification**: SHA256 checksum validation for downloaded packages
+- **ZON Formatter**: Format build.zig.zon files with proper structure
+- **FFI Interface**: C-compatible API for integration with other tools
 
-For neovim user, please use neovim `0.10` and zig `0.14.0`!
+## Requirements
 
-this plugin's dependency is [plenary.nvim](https://github.com/nvim-lua/plenary.nvim) and [lspconfig](https://github.com/neovim/nvim-lspconfig)!
+### Neovim Plugin
+- **Neovim**: 0.10 or later
+- **Zig**: 0.14.0 or later
+- **Dependencies**: 
+  - [plenary.nvim](https://github.com/nvim-lua/plenary.nvim)
+  - [nvim-lspconfig](https://github.com/neovim/nvim-lspconfig)
 
-If you are using `lazy.nvim`, just add this to your configuration file:
+### System Tools
+- **Windows**: `curl` and `unzip`
+- **Unix-like systems**: `curl` and `tar`
+
+## Installation
+
+### Using lazy.nvim
 
 ```lua
--- no need to call any setup
 {
     "jinzhongjia/zig-lamp",
     event = "VeryLazy",
     build = ":ZigLamp build sync",
-    -- or ":ZigLamp build" for async build, the build job will return immediately
-    -- or ":ZigLamp build sync 20000" for sync build with specified timeout 20000ms
     dependencies = {
         "neovim/nvim-lspconfig",
         "nvim-lua/plenary.nvim",
     },
-    -- Here is default config, in general you no need to set these options
     init = function()
-        -- if set this Non-negative value, zig-lamp will automatically install zls when open zig file.
+        -- Configuration options (all optional)
+        
+        -- Timeout in milliseconds for automatic ZLS installation
+        -- Set to nil to disable auto-install
         vim.g.zig_lamp_zls_auto_install = nil
-        -- if set this Non-negative value, zig-lamp will fallback system zls when not found downloaded zls.
+        
+        -- Fallback to system ZLS if local version not found
+        -- Set to any non-negative value to enable
         vim.g.zig_lamp_fall_back_sys_zls = nil
-        -- this is setting for zls with lspconfig, the opts you need to see document of zls and lspconfig.
+        
+        -- LSP configuration options passed to lspconfig
         vim.g.zig_lamp_zls_lsp_opt = {}
+        
+        -- UI customization
         vim.g.zig_lamp_pkg_help_fg = "#CF5C00"
         vim.g.zig_lamp_zig_fetch_timeout = 5000
     end,
 }
 ```
 
-**Do not set zls through lspconfig, `zig-lamp` will do this!**
+> **Important**: Do not configure ZLS through lspconfig directly. zig-lamp handles ZLS setup automatically.
 
-for windows user: you need `curl` and `unzip`
+### Version Compatibility
 
-for unix-like user: you need `curl` and `tar`
+| zig-lamp | Zig Version | Neovim |
+|----------|-------------|---------|
+| 0.0.1    | 0.13.0 and earlier | 0.10+ |
+| latest   | 0.14.0+     | 0.10+ |
 
-### Notice
+## Commands
 
-Since external libraries are introduced, if the zig compiled libraries appear panic or do not conform to the c API, then neovim will crash. Please open the issue report
+### ZLS Management
+- `:ZigLamp zls install` - Install ZLS matching current Zig version
+- `:ZigLamp zls uninstall` - Remove installed ZLS version
 
-## Install(zig)
+### Project Management
+- `:ZigLamp info` - Show project and toolchain information
+- `:ZigLamp pkg` - Open package manager interface
+- `:ZigLamp build [sync|async] [timeout]` - Build the zig-lamp library
 
-1. Add to `build.zig.zon`
+### Build Command Options
+- `async` (default) - Non-blocking build, returns immediately
+- `sync [timeout]` - Blocking build with optional timeout in milliseconds
+- `sync 20000` - Sync build with 20-second timeout
 
-```sh
-# It is recommended to replace the following branch with commit id
+## Package Manager Interface
+
+The package manager provides an intuitive interface for managing Zig dependencies:
+
+### Key Bindings
+- `q` - Quit the package manager
+- `i` - Add or edit dependency
+- `o` - Toggle between URL and local path dependencies
+- `<leader>r` - Reload from build.zig.zon file
+- `d` - Delete selected dependency or path
+- `<leader>s` - Save changes to build.zig.zon file
+
+### Features
+- Visual dependency management
+- Automatic hash generation for URL dependencies
+- Support for both URL and local path dependencies
+- Real-time file synchronization
+- Syntax highlighting and help text
+
+## Using zig-lamp as a Zig Library
+
+### Installation
+
+1. **Add to build.zig.zon**:
+```bash
+# Recommended: Use specific commit instead of branch
 zig fetch --save https://github.com/jinzhongjia/zig-lamp/archive/main.tar.gz
-# Of course, you can also use git+https to fetch this package!
+
+# Alternative: Git URL (requires git)
+zig fetch --save git+https://github.com/jinzhongjia/zig-lamp
 ```
 
-2. Config to `build.zig`
+2. **Configure build.zig**:
+```zig
+const std = @import("std");
+
+pub fn build(b: *std.Build) void {
+    const target = b.standardTargetOptions(.{});
+    const optimize = b.standardOptimizeOption(.{});
+
+    // Add zig-lamp dependency
+    const zig_lamp = b.dependency("zig-lamp", .{
+        .target = target,
+        .optimize = optimize,
+    });
+
+    const exe = b.addExecutable(.{
+        .name = "your-app",
+        .root_source_file = b.path("src/main.zig"),
+        .target = target,
+        .optimize = optimize,
+    });
+
+    // Import zig-lamp module
+    exe.root_module.addImport("zigLamp", zig_lamp.module("zigLamp"));
+    
+    b.installArtifact(exe);
+}
+```
+
+### API Usage
 
 ```zig
-// To standardize development, maybe you should use `lazyDependency()` instead of `dependency()`
-// more info to see: https://ziglang.org/download/0.12.0/release-notes.html#toc-Lazy-Dependencies
-const zig_lamp = b.dependency("zig-lamp", .{
-    .target = target,
-    .optimize = optimize,
-});
+const std = @import("std");
+const zigLamp = @import("zigLamp");
 
-// add module
-exe.root_module.addImport("zigLamp", zig_lamp.module("zigLamp"));
+pub fn main() !void {
+    var gpa = std.heap.GeneralPurposeAllocator(.{}){};
+    defer _ = gpa.deinit();
+    const allocator = gpa.allocator();
+
+    // Parse build.zig.zon to JSON
+    const file = try std.fs.cwd().openFile("build.zig.zon", .{});
+    defer file.close();
+    
+    var output = std.ArrayList(u8).init(allocator);
+    defer output.deinit();
+    
+    try zigLamp.zig2json(
+        allocator,
+        file.reader().any(),
+        output.writer(),
+        void{},
+        .{ .file_name = "build.zig.zon" }
+    );
+    
+    std.log.info("JSON output: {s}", .{output.items});
+
+    // Verify file hash
+    const digest = try zigLamp.sha256Digest(file);
+    std.log.info("SHA256: {}", .{std.fmt.fmtSliceHexLower(&digest)});
+
+    // Format ZON file
+    const source = "@import(\"std\")";
+    const formatted = try zigLamp.fmtZon(source, allocator);
+    defer allocator.free(formatted);
+    std.log.info("Formatted: {s}", .{formatted});
+}
 ```
 
-## Command
+## Architecture
 
-- `ZigLamp info`: display infos
-- `ZigLamp zls install`: automatically install zls matching the current system zig version
-- `ZigLamp zls uninstall`: uninstall the specified zls
-- `ZigLamp build`: you can add param `sync` + timeout(ms optional) or `async` to select build mode
-- `ZigLamp pkg`: package manager panel
+### Neovim Plugin Structure
+```
+lua/zig-lamp/
+├── core/           # Core functionality
+│   ├── core_cmd.lua    # Command system
+│   ├── core_config.lua # Configuration management
+│   ├── core_ffi.lua    # FFI interface to Zig library
+│   └── core_util.lua   # Utility functions
+├── info.lua        # Information display
+├── pkg/            # Package manager
+├── zig/            # Zig integration
+└── zls/            # ZLS management
+```
 
-## ScreenShot
+### Zig Library Structure
+```
+src/
+├── zig-lamp.zig    # Main library interface
+├── zon2json.zig    # ZON to JSON parser
+└── fmtzon.zig      # ZON formatter
+```
 
-![pkg_panel](https://github.com/user-attachments/assets/01324e66-5912-4532-beeb-ac82c3ca84d0)
-![info](https://github.com/user-attachments/assets/c5c988b5-d0b4-453e-8967-2b00b2bd3a11)
+## Troubleshooting
+
+### Common Issues
+
+**ZLS Not Found**: Run `:ZigLamp zls install` to download the appropriate ZLS version.
+
+**Build Failures**: Ensure you have the required system tools (curl, unzip/tar) installed.
+
+**Library Crashes**: If the Zig library causes Neovim crashes, please file an issue with:
+- Neovim version
+- Zig version
+- Error reproduction steps
+
+**Permission Errors**: Make sure Neovim has write access to its data directory.
+
+## Development
+
+### Building from Source
+```bash
+# Clone the repository
+git clone https://github.com/jinzhongjia/zig-lamp.git
+cd zig-lamp
+
+# Build the library
+zig build -Doptimize=ReleaseFast
+
+# Run tests
+zig build test
+```
+
+### Contributing
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests if applicable
+5. Submit a pull request
+
+## Screenshots
+
+### Package Manager Interface
+![Package Manager](https://github.com/user-attachments/assets/01324e66-5912-4532-beeb-ac82c3ca84d0)
+
+### Project Information Panel
+![Info Panel](https://github.com/user-attachments/assets/c5c988b5-d0b4-453e-8967-2b00b2bd3a11)
+
+## License
+
+This project is open source. See the repository for license details.
+
+## Support
+
+- **Issues**: [GitHub Issues](https://github.com/jinzhongjia/zig-lamp/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/jinzhongjia/zig-lamp/discussions)
+
+---
+
+**Note**: Since this plugin integrates with external libraries via FFI, stability depends on the Zig compilation target and C API compatibility. Please report any crashes or unexpected behavior.

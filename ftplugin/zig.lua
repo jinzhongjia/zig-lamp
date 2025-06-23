@@ -1,7 +1,7 @@
 -- this file will run when enter zig.lua
 
-local util = require("zig-lamp.util")
-local zls = require("zig-lamp.module.zls")
+local util = require("zig-lamp.core.core_util")
+local zls = require("zig-lamp.zls")
 
 -- config zls for lsp
 do
@@ -16,12 +16,10 @@ do
                 zls.zls_install({})
                 return
             end
-            -- stylua: ignore
             util.Warn("Not found valid zls, please run \"ZigLamp zls install\" to install it.")
             return
         end
 
-        ---@diagnostic disable-next-line: param-type-mismatch
         zls.setup_lspconfig(zls_version)
     end
     if zls.get_current_lsp_zls_version() or zls.if_using_sys_zls() then
