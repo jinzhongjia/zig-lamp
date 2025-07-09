@@ -31,7 +31,7 @@ local function find_build_zon(start_path)
         util.Error("Failed to load plenary.path")
         return nil
     end
-    
+
     local search_path = start_path or fn.getcwd()
     local path_obj = path:new(search_path)
     return path_obj:find_upwards("build.zig.zon")
@@ -46,17 +46,23 @@ local function get_hash(url)
         util.Error("Zig executable not found")
         return nil
     end
-    
+
     util.Info("Getting package hash for: " .. url)
-    
+
     local handle = vim.system({ "zig", "fetch", url }, { text = true })
     local result = handle:wait()
-    
+
     if result.code ~= 0 then
-        util.Error(string.format("Failed to fetch package: %s (exit code: %d)", url, result.code))
+        util.Error(
+            string.format(
+                "Failed to fetch package: %s (exit code: %d)",
+                url,
+                result.code
+            )
+        )
         return nil
     end
-    
+
     return result.stdout and vim.trim(result.stdout) or nil
 end
 
@@ -69,13 +75,13 @@ local function get_zon_info_safe(zon_path)
         util.Warn("build.zig.zon file not found")
         return nil
     end
-    
+
     local zon_info = zig_ffi.get_build_zon_info(zon_path:absolute())
     if not zon_info then
         util.Warn("Failed to parse build.zig.zon file")
         return nil
     end
-    
+
     return zon_info
 end
 
@@ -88,14 +94,14 @@ local function is_file_in_workspace(zon_info, current_file)
     if not zon_info.paths or #zon_info.paths == 0 then
         return false
     end
-    
+
     for _, path in ipairs(zon_info.paths) do
         local full_path = vim.fn.fnamemodify(path, ":p")
         if full_path == current_file then
             return true
         end
     end
-    
+
     return false
 end
 
@@ -112,12 +118,20 @@ local function execute_zig_build_command(command_args, target_name, action_name)
         cwd = vim.fn.expand("%:p:h"),
         env = { ZIGBUILD_EXEC = "true" },
     }):sync()
-    
+
     if result and #result > 0 then
-        util.Info(string.format("%s target '%s' completed successfully", action_name, target_name))
+        util.Info(
+            string.format(
+                "%s target '%s' completed successfully",
+                action_name,
+                target_name
+            )
+        )
         return true
     else
-        util.Error(string.format("Failed to %s target '%s'", action_name, target_name))
+        util.Error(
+            string.format("Failed to %s target '%s'", action_name, target_name)
+        )
         return false
     end
 end
@@ -133,32 +147,38 @@ local function process_zon_operation(operation_args, action_name)
     if not zon_info then
         return false
     end
-    
+
     local current_file = fn.expand("%:p")
     if not is_file_in_workspace(zon_info, current_file) then
         util.Warn("Current file is not in workspace paths")
         return false
     end
-    
+
     local target_file = vim.fn.fnamemodify(current_file, ":t")
-    
+
     -- Search for matching target in build configuration
     if not zon_info.targets then
         util.Warn("No targets found in build.zig.zon")
         return false
     end
-    
+
     for _, target in ipairs(zon_info.targets) do
         if target.name == target_file then
-            local command = vim.list_extend({ "zig", "build-official" }, operation_args)
+            local command =
+                vim.list_extend({ "zig", "build-official" }, operation_args)
             table.insert(command, "--target")
             table.insert(command, target.name)
-            
+
             return execute_zig_build_command(command, target.name, action_name)
         end
     end
-    
-    util.Warn(string.format("Target file '%s' not found in build configuration", target_file))
+
+    util.Warn(
+        string.format(
+            "Target file '%s' not found in build configuration",
+            target_file
+        )
+    )
     return false
 end
 
@@ -170,16 +190,16 @@ end
 local function render_help_text(buffer)
     local help_content = {
         "Key [q] to quit",
-        "Key [i] to add or edit", 
+        "Key [i] to add or edit",
         "Key [o] to switch dependency type (url or path)",
         "Key [<leader>r] to reload from file",
         "Key [d] to delete dependency or path",
         "Key [<leader>s] to sync changes to file",
     }
-    
+
     for index, text in ipairs(help_content) do
         api.nvim_buf_set_extmark(buffer, HELP_NAMESPACE, index - 1, 0, {
-            virt_text = {{ text .. " ", HELP_HL_GROUP }},
+            virt_text = { { text .. " ", HELP_HL_GROUP } },
             virt_text_pos = "right_align",
         })
     end
@@ -195,7 +215,7 @@ end
 local function add_highlight(highlights, group, line, text, prefix)
     local prefix_len = string.len(prefix or "")
     local text_len = string.len(text or "")
-    
+
     table.insert(highlights, {
         group = group,
         line = line,
@@ -213,30 +233,33 @@ local function render(ctx)
     local content = {}
     local highlights = {}
     local current_line = 0
-    
+
     -- Package Info header
     local header = "  Package Information"
     table.insert(content, header)
     add_highlight(highlights, "Title", current_line, header, "")
     current_line = current_line + 1
-    
+
     table.insert(content, "") -- Empty line for spacing
     current_line = current_line + 1
-    
+
     -- Package metadata section
     local details = {
         { label = "  Name: ", value = zon_info.name or "[none]" },
         { label = "  Version: ", value = zon_info.version or "[none]" },
         { label = "  Fingerprint: ", value = zon_info.fingerprint or "[none]" },
-        { label = "  Minimum Zig version: ", value = zon_info.minimum_zig_version or "[none]" },
+        {
+            label = "  Minimum Zig version: ",
+            value = zon_info.minimum_zig_version or "[none]",
+        },
     }
-    
+
     for _, detail in ipairs(details) do
         table.insert(content, detail.label .. detail.value)
         add_highlight(highlights, "Title", current_line, detail.label, "")
         current_line = current_line + 1
     end
-    
+
     -- Paths section - shows which paths are included in the package
     if zon_info.paths and #zon_info.paths == 1 and zon_info.paths[1] == "" then
         local paths_text = "  Paths [include all]"
@@ -248,7 +271,7 @@ local function render(ctx)
         table.insert(content, paths_header)
         add_highlight(highlights, "Title", current_line, paths_header, "")
         current_line = current_line + 1
-        
+
         for _, path_item in ipairs(zon_info.paths) do
             table.insert(content, "    - " .. path_item)
             current_line = current_line + 1
@@ -259,14 +282,16 @@ local function render(ctx)
         add_highlight(highlights, "Title", current_line, paths_text, "")
         current_line = current_line + 1
     end
-    
+
     -- Dependencies section - shows all package dependencies
-    local dep_count = zon_info.dependencies and vim.tbl_count(zon_info.dependencies) or 0
+    local dep_count = zon_info.dependencies
+            and vim.tbl_count(zon_info.dependencies)
+        or 0
     local deps_header = string.format("  Dependencies [%d]: ", dep_count)
     table.insert(content, deps_header)
     add_highlight(highlights, "Title", current_line, deps_header, "")
     current_line = current_line + 1
-    
+
     if zon_info.dependencies and not vim.tbl_isempty(zon_info.dependencies) then
         for name, dep_info in pairs(zon_info.dependencies) do
             -- Dependency name
@@ -274,49 +299,75 @@ local function render(ctx)
             table.insert(content, name_prefix .. name)
             add_highlight(highlights, "Tag", current_line, name, name_prefix)
             current_line = current_line + 1
-            
+
             -- URL or local path source
             if dep_info.url then
                 local url_prefix = "      url: "
                 table.insert(content, url_prefix .. dep_info.url)
-                add_highlight(highlights, "Underlined", current_line, dep_info.url, url_prefix)
+                add_highlight(
+                    highlights,
+                    "Underlined",
+                    current_line,
+                    dep_info.url,
+                    url_prefix
+                )
                 current_line = current_line + 1
             elseif dep_info.path then
                 local path_prefix = "      path: "
                 table.insert(content, path_prefix .. dep_info.path)
-                add_highlight(highlights, "Underlined", current_line, dep_info.path, path_prefix)
+                add_highlight(
+                    highlights,
+                    "Underlined",
+                    current_line,
+                    dep_info.path,
+                    path_prefix
+                )
                 current_line = current_line + 1
             else
                 table.insert(content, "      [no url or path specified]")
                 current_line = current_line + 1
             end
-            
+
             -- Hash (only displayed for URL dependencies)
             if dep_info.url then
                 local hash_prefix = "      hash: "
                 local hash_value = dep_info.hash or "[none]"
                 table.insert(content, hash_prefix .. hash_value)
-                add_highlight(highlights, "Underlined", current_line, hash_value, hash_prefix)
+                add_highlight(
+                    highlights,
+                    "Underlined",
+                    current_line,
+                    hash_value,
+                    hash_prefix
+                )
                 current_line = current_line + 1
             end
-            
+
             -- Lazy loading flag - indicates if dependency should be loaded on-demand
             local lazy_prefix = "      lazy: "
-            local lazy_value = dep_info.lazy == nil and "[unset]" or tostring(dep_info.lazy)
+            local lazy_value = dep_info.lazy == nil and "[unset]"
+                or tostring(dep_info.lazy)
             table.insert(content, lazy_prefix .. lazy_value)
             current_line = current_line + 1
         end
     end
-    
+
     -- Update buffer content and apply styling
     nvim_set_option_value("modifiable", true, { buf = buffer })
     api.nvim_buf_set_lines(buffer, 0, -1, true, content)
-    
+
     -- Apply syntax highlighting
     for _, hl in ipairs(highlights) do
-        api.nvim_buf_add_highlight(buffer, HELP_NAMESPACE, hl.group, hl.line, hl.col_start, hl.col_end)
+        api.nvim_buf_add_highlight(
+            buffer,
+            HELP_NAMESPACE,
+            hl.group,
+            hl.line,
+            hl.col_start,
+            hl.col_end
+        )
     end
-    
+
     render_help_text(buffer)
     nvim_set_option_value("modifiable", false, { buf = buffer })
 end
@@ -338,7 +389,11 @@ local function delete_cb(ctx)
         lnum = lnum - 1 -- Skip paths header
 
         -- Handle path deletion
-        if ctx.zon_info.paths and #ctx.zon_info.paths > 0 and ctx.zon_info.paths[1] ~= "" then
+        if
+            ctx.zon_info.paths
+            and #ctx.zon_info.paths > 0
+            and ctx.zon_info.paths[1] ~= ""
+        then
             for index, _ in pairs(ctx.zon_info.paths) do
                 if lnum - 1 == 0 then
                     table.remove(ctx.zon_info.paths, index)
@@ -350,13 +405,13 @@ local function delete_cb(ctx)
         end
 
         lnum = lnum - 1 -- Skip dependencies header
-        
+
         -- Handle dependency deletion
         local deps_is_empty = vim.tbl_isempty(ctx.zon_info.dependencies)
         if ctx.zon_info.dependencies and not deps_is_empty then
             for name, dep_info in pairs(ctx.zon_info.dependencies) do
                 local line_count = dep_info.url and 4 or 3
-                
+
                 if lnum > 0 and lnum < line_count + 1 then
                     ctx.zon_info.dependencies[name] = nil
                     render(ctx)
@@ -368,7 +423,7 @@ local function delete_cb(ctx)
     end
 end
 
---- Edit callback  
+--- Edit callback
 --- Handles the 'i' key press to edit package information based on cursor position
 --- @param ctx table Package context containing buffer and zon info
 --- @return function Callback function for keymap
@@ -385,7 +440,9 @@ local function edit_cb(ctx)
                 prompt = "Enter value for name: ",
                 default = ctx.zon_info.name,
             }, function(input)
-                if not input then return end
+                if not input then
+                    return
+                end
                 if input == "" then
                     util.Warn("Package name cannot be empty!")
                     return
@@ -403,7 +460,9 @@ local function edit_cb(ctx)
                 prompt = "Enter value for version: ",
                 default = ctx.zon_info.version,
             }, function(input)
-                if not input then return end
+                if not input then
+                    return
+                end
                 if input == "" then
                     util.Warn("Package version cannot be empty!")
                     return
@@ -421,7 +480,9 @@ local function edit_cb(ctx)
                 prompt = "Enter value for fingerprint: ",
                 default = ctx.zon_info.fingerprint,
             }, function(input)
-                if not input then return end
+                if not input then
+                    return
+                end
                 ctx.zon_info.fingerprint = input == "" and nil or input
                 render(ctx)
             end)
@@ -435,7 +496,9 @@ local function edit_cb(ctx)
                 prompt = "Enter value for minimum Zig version: ",
                 default = ctx.zon_info.minimum_zig_version,
             }, function(input)
-                if not input then return end
+                if not input then
+                    return
+                end
                 ctx.zon_info.minimum_zig_version = input == "" and nil or input
                 render(ctx)
             end)
@@ -448,8 +511,14 @@ local function edit_cb(ctx)
             vim.ui.input({
                 prompt = "Enter value for new path: ",
             }, function(input)
-                if not input then return end
-                if ctx.zon_info.paths and #ctx.zon_info.paths == 1 and ctx.zon_info.paths[1] == "" then
+                if not input then
+                    return
+                end
+                if
+                    ctx.zon_info.paths
+                    and #ctx.zon_info.paths == 1
+                    and ctx.zon_info.paths[1] == ""
+                then
                     ctx.zon_info.paths = { input }
                 else
                     ctx.zon_info.paths = ctx.zon_info.paths or {}
@@ -462,14 +531,20 @@ local function edit_cb(ctx)
         lnum = lnum - 1
 
         -- Edit existing paths
-        if ctx.zon_info.paths and #ctx.zon_info.paths > 0 and ctx.zon_info.paths[1] ~= "" then
+        if
+            ctx.zon_info.paths
+            and #ctx.zon_info.paths > 0
+            and ctx.zon_info.paths[1] ~= ""
+        then
             for index, val in pairs(ctx.zon_info.paths) do
                 if lnum - 1 == 0 then
                     vim.ui.input({
                         prompt = "Enter value for path: ",
                         default = val,
                     }, function(input)
-                        if not input then return end
+                        if not input then
+                            return
+                        end
                         ctx.zon_info.paths[index] = input
                         render(ctx)
                     end)
@@ -485,7 +560,9 @@ local function edit_cb(ctx)
                 prompt = "Enter name for new dependency: ",
                 default = "new_dep",
             }, function(input)
-                if not input then return end
+                if not input then
+                    return
+                end
                 ctx.zon_info.dependencies = ctx.zon_info.dependencies or {}
                 ctx.zon_info.dependencies[input] = {}
                 render(ctx)
@@ -504,7 +581,9 @@ local function edit_cb(ctx)
                         prompt = "Enter value for dependency name: ",
                         default = name,
                     }, function(input)
-                        if not input then return end
+                        if not input then
+                            return
+                        end
                         ctx.zon_info.dependencies[input] = dep_info
                         ctx.zon_info.dependencies[name] = nil
                         render(ctx)
@@ -523,18 +602,26 @@ local function edit_cb(ctx)
                                 return "I'd like to choose " .. item
                             end,
                         }, function(choice)
-                            if not choice then return end
+                            if not choice then
+                                return
+                            end
                             vim.ui.input({
-                                prompt = string.format("Enter value for dependency %s: ", choice),
+                                prompt = string.format(
+                                    "Enter value for dependency %s: ",
+                                    choice
+                                ),
                             }, function(input)
-                                if not input then return end
+                                if not input then
+                                    return
+                                end
                                 if choice == "path" then
                                     ctx.zon_info.dependencies[name].path = input
                                 else
                                     ctx.zon_info.dependencies[name].url = input
                                     local hash = get_hash(input)
                                     if hash then
-                                        ctx.zon_info.dependencies[name].hash = hash
+                                        ctx.zon_info.dependencies[name].hash =
+                                            hash
                                     end
                                 end
                                 render(ctx)
@@ -542,13 +629,18 @@ local function edit_cb(ctx)
                         end)
                         return
                     end
-                    
+
                     local is_url = dep_info.url ~= nil
                     vim.ui.input({
-                        prompt = string.format("Enter value for dependency %s: ", is_url and "url" or "path"),
+                        prompt = string.format(
+                            "Enter value for dependency %s: ",
+                            is_url and "url" or "path"
+                        ),
                         default = is_url and dep_info.url or dep_info.path,
                     }, function(input)
-                        if not input then return end
+                        if not input then
+                            return
+                        end
                         if input == "" then
                             ctx.zon_info.dependencies[name].url = nil
                             ctx.zon_info.dependencies[name].path = nil
@@ -578,7 +670,9 @@ local function edit_cb(ctx)
                             prompt = "Enter value for dependency hash: ",
                             default = dep_info.hash,
                         }, function(input)
-                            if not input then return end
+                            if not input then
+                                return
+                            end
                             ctx.zon_info.dependencies[name].hash = input
                             render(ctx)
                         end)
@@ -595,7 +689,9 @@ local function edit_cb(ctx)
                             return "I'd like to choose " .. item
                         end,
                     }, function(choice)
-                        if not choice then return end
+                        if not choice then
+                            return
+                        end
                         if choice == "true" then
                             ctx.zon_info.dependencies[name].lazy = true
                         elseif choice == "false" then
@@ -666,32 +762,41 @@ local function switch_cb(ctx)
         if lnum < 1 then
             return
         end
-        
+
         -- Skip metadata lines
         lnum = lnum - 4 -- name, version, fingerprint, minimum zig version
         lnum = lnum - 1 -- paths header
-        
+
         -- Skip path lines
-        if ctx.zon_info.paths and #ctx.zon_info.paths > 0 and ctx.zon_info.paths[1] ~= "" then
+        if
+            ctx.zon_info.paths
+            and #ctx.zon_info.paths > 0
+            and ctx.zon_info.paths[1] ~= ""
+        then
             for _, _ in pairs(ctx.zon_info.paths) do
                 lnum = lnum - 1
             end
         end
-        
+
         lnum = lnum - 1 -- dependencies header
-        
+
         -- Find and switch dependency type
         local deps_is_empty = vim.tbl_isempty(ctx.zon_info.dependencies or {})
         if ctx.zon_info.dependencies and not deps_is_empty then
             for name, dep_info in pairs(ctx.zon_info.dependencies) do
                 local is_url = dep_info.url ~= nil
                 local line_count = is_url and 4 or 3
-                
+
                 if lnum > 0 and lnum < line_count + 1 then
                     vim.ui.input({
-                        prompt = string.format("Enter value for dependency %s: ", (not is_url) and "url" or "path"),
+                        prompt = string.format(
+                            "Enter value for dependency %s: ",
+                            (not is_url) and "url" or "path"
+                        ),
                     }, function(input)
-                        if not input then return end
+                        if not input then
+                            return
+                        end
                         if input == "" then
                             ctx.zon_info.dependencies[name].url = nil
                             ctx.zon_info.dependencies[name].path = nil
@@ -733,9 +838,13 @@ local function set_keymap(ctx)
         { key = "o", desc = "Switch dependency type", callback = switch_cb },
         { key = "<leader>r", desc = "Reload from file", callback = reload_cb },
         { key = "d", desc = "Delete dependency", callback = delete_cb },
-        { key = "<leader>s", desc = "Sync changes to file", callback = sync_cb },
+        {
+            key = "<leader>s",
+            desc = "Sync changes to file",
+            callback = sync_cb,
+        },
     }
-    
+
     for _, mapping in ipairs(key_mappings) do
         api.nvim_buf_set_keymap(ctx.buffer, "n", mapping.key, "", {
             noremap = true,
@@ -752,11 +861,11 @@ end
 local function set_buf_option(buffer)
     local options = {
         { option = "filetype", value = FILETYPE },
-        { option = "bufhidden", value = "delete" },  -- Auto-delete when hidden
-        { option = "undolevels", value = -1 },       -- Disable undo for this buffer
-        { option = "modifiable", value = false },    -- Make buffer read-only by default
+        { option = "bufhidden", value = "delete" }, -- Auto-delete when hidden
+        { option = "undolevels", value = -1 }, -- Disable undo for this buffer
+        { option = "modifiable", value = false }, -- Make buffer read-only by default
     }
-    
+
     for _, opt in ipairs(options) do
         nvim_set_option_value(opt.option, opt.value, { buf = buffer })
     end
@@ -771,7 +880,7 @@ local function cb_pkg(args)
     if not zon_info then
         return
     end
-    
+
     -- Create and configure buffer for package display
     local new_buf = api.nvim_create_buf(false, true)
     local ctx = {
@@ -779,11 +888,11 @@ local function cb_pkg(args)
         zon_path = zon_path,
         buffer = new_buf,
     }
-    
+
     -- Setup display content and styling
     render(ctx)
     set_buf_option(new_buf)
-    
+
     -- Open window and setup interactive keymaps
     nvim_open_win(new_buf, true, { split = "below", style = "minimal" })
     set_keymap(ctx)
@@ -794,11 +903,14 @@ end
 function M.setup()
     -- Register the main package info command
     cmd.set_command(cb_pkg, { "info" }, "pkg")
-    
+
     -- Setup custom highlight group for help text
     vim.schedule(function()
         local hl_config = {
-            fg = util.adjust_brightness(vim.g.zig_lamp_pkg_help_fg or "#CF5C00", 30),
+            fg = util.adjust_brightness(
+                vim.g.zig_lamp_pkg_help_fg or "#CF5C00",
+                30
+            ),
             italic = true,
         }
         api.nvim_set_hl(0, HELP_HL_GROUP, hl_config)

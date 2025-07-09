@@ -10,7 +10,9 @@ local vim = vim
 -- Check plenary dependency
 local ok_path, path = pcall(require, "plenary.path")
 if not ok_path then
-    util.Error("[zig-lamp.zls] Failed to require('plenary.path'), please ensure plenary.nvim is installed")
+    util.Error(
+        "[zig-lamp.zls] Failed to require('plenary.path'), please ensure plenary.nvim is installed"
+    )
     return {}
 end
 
@@ -78,7 +80,7 @@ local function get_db()
     if _db then
         return _db
     end
-    
+
     if not ZLS_DB_PATH:exists() then
         ensure_directory(ZLS_DB_PATH:parent():absolute())
         ZLS_DB_PATH:touch()
@@ -100,12 +102,12 @@ local function save_db()
     if not _db then
         return false
     end
-    
+
     local ok, err = pcall(function()
         ensure_directory(ZLS_DB_PATH:parent():absolute())
         ZLS_DB_PATH:write(safe_json_encode(_db), "w", 438)
     end)
-    
+
     if not ok then
         util.Error("Failed to save ZLS database: " .. tostring(err))
         return false
@@ -152,9 +154,11 @@ local function remove_path_safe(target_path, recursive)
             p:rm(recursive and { recursive = true } or nil)
         end
     end)
-    
+
     if not ok then
-        util.Error("Failed to remove path: " .. target_path .. " - " .. tostring(err))
+        util.Error(
+            "Failed to remove path: " .. target_path .. " - " .. tostring(err)
+        )
         return false
     end
     return true
@@ -166,12 +170,12 @@ end
 local function generate_src_and_dest(zls_version)
     local src_loc = vim.fs.joinpath(config.tmp_path, zls_version)
     local dest_path = path:new(ZLS_STORE_PATH, zls_version)
-    
+
     -- Clean existing destination
     if dest_path:exists() then
         remove_path_safe(dest_path:absolute(), true)
     end
-    
+
     ensure_directory(dest_path:absolute())
     return src_loc, vim.fs.normalize(dest_path:absolute())
 end
@@ -184,7 +188,7 @@ end
 local function extract_zls_archive(zls_version, callback)
     local src_loc, dest_loc = generate_src_and_dest(zls_version)
     local filename = get_filename()
-    
+
     local extract_cmd, extract_args
     if util.sys == "windows" then
         extract_cmd = "unzip"
@@ -193,20 +197,29 @@ local function extract_zls_archive(zls_version, callback)
         extract_cmd = "tar"
         extract_args = { "-xvf", src_loc, "-C", dest_loc, filename }
     end
-    
+
     local _j = job:new({
         command = extract_cmd,
         args = extract_args,
         on_exit = vim.schedule_wrap(function(_, code, signal)
             if code == 0 then
-                if callback then callback(true) end
+                if callback then
+                    callback(true)
+                end
             else
-                util.Error("Failed to extract ZLS archive: " .. extract_cmd .. " exited with code " .. tostring(code))
-                if callback then callback(false) end
+                util.Error(
+                    "Failed to extract ZLS archive: "
+                        .. extract_cmd
+                        .. " exited with code "
+                        .. tostring(code)
+                )
+                if callback then
+                    callback(false)
+                end
             end
-        end)
+        end),
     })
-    
+
     _j:start()
 end
 
@@ -220,18 +233,18 @@ local function verify_local_zls_version(zls_version)
     if not zls_path:exists() then
         return nil
     end
-    
-    local _j = job:new({ 
-        command = zls_path:absolute(), 
+
+    local _j = job:new({
+        command = zls_path:absolute(),
         args = { "--version" },
-        enable_recording = true
+        enable_recording = true,
     })
-    
+
     local ok, result = pcall(_j.sync, _j)
     if not ok or not result then
         return false
     end
-    
+
     return result[1] == zls_version
 end
 
@@ -313,19 +326,19 @@ function M.sys_version()
     if not M.if_sys_zls() then
         return nil
     end
-    
-    local _tmp = job:new({ 
-        command = "zls", 
+
+    local _tmp = job:new({
+        command = "zls",
         args = { "--version" },
-        enable_recording = true
+        enable_recording = true,
     })
-    
+
     local ok, result = pcall(_tmp.sync, _tmp)
     if not ok or not result or #result == 0 then
         util.Error("Failed to get system ZLS version")
         return nil
     end
-    
+
     return result[1]
 end
 
@@ -334,22 +347,23 @@ end
 function M.local_zls_lists()
     local res = {}
     local store_path = path:new(ZLS_STORE_PATH)
-    
+
     if not store_path:exists() then
         return res
     end
-    
-    local ok, directories = pcall(scan.scan_dir, ZLS_STORE_PATH, { only_dirs = true })
+
+    local ok, directories =
+        pcall(scan.scan_dir, ZLS_STORE_PATH, { only_dirs = true })
     if not ok then
         util.Error("Failed to scan ZLS store directory")
         return res
     end
-    
+
     for _, value in pairs(directories) do
         local version = vim.fn.fnamemodify(value, ":t")
         table.insert(res, version)
     end
-    
+
     return res
 end
 
@@ -382,7 +396,7 @@ end
 --- @param new_root_dir string Project root directory
 local function lsp_on_new_config(new_config, new_root_dir)
     local zls_cmd = "zls"
-    
+
     if not if_using_sys_zls then
         local zls_version = M.get_zls_version()
         local zls_path = M.get_zls_path(zls_version)
@@ -390,9 +404,9 @@ local function lsp_on_new_config(new_config, new_root_dir)
             zls_cmd = zls_path
         end
     end
-    
+
     new_config.cmd = { zls_cmd }
-    
+
     -- Check for zls.json config file
     local config_path = vim.fs.joinpath(new_root_dir, "zls.json")
     if vim.fn.filereadable(config_path) ~= 0 then
@@ -409,16 +423,16 @@ function M.setup_lspconfig(zls_version)
         util.Error("Failed to load lspconfig")
         return false
     end
-    
+
     local lsp_opt = vim.g.zig_lamp_zls_lsp_opt or {}
     lsp_opt.autostart = false
     lsp_opt.on_new_config = lsp_on_new_config
-    
+
     lspconfig.zls.setup(lsp_opt)
     M.set_current_lsp_zls_version(zls_version)
     if_using_sys_zls = zls_version == nil
     M.lsp_inited()
-    
+
     return true
 end
 
@@ -431,13 +445,13 @@ function M.launch_zls(bufnr)
         util.Error("Failed to load lspconfig.configs")
         return false
     end
-    
+
     local zls_config = lspconfig_configs.zls
     if zls_config and zls_config.launch then
         zls_config.launch(bufnr)
         return true
     end
-    
+
     return false
 end
 
@@ -451,16 +465,21 @@ function M.zls_install(_)
         util.Warn("Zig not found")
         return
     end
-    
+
     util.Info("Found Zig version: " .. zig_version)
-    
+
     -- Check if ZLS is already installed locally
     local db_zls_version = M.get_zls_version_from_db(zig_version)
     if db_zls_version then
         util.Info("Found ZLS version in database: " .. db_zls_version)
-        
+
         if verify_local_zls_version(db_zls_version) then
-            util.Info(string.format("ZLS version %s is already installed", db_zls_version))
+            util.Info(
+                string.format(
+                    "ZLS version %s is already installed",
+                    db_zls_version
+                )
+            )
             return
         else
             util.Info("ZLS version verification failed, reinstalling...")
@@ -468,32 +487,36 @@ function M.zls_install(_)
             remove_zls(db_zls_version)
         end
     end
-    
+
     util.Info("ZLS not found in database, fetching metadata...")
-    
+
     -- Installation completion callback
     local function after_install(zls_version)
         if M.lsp_if_inited() then
             return
         end
-        
+
         M.setup_lspconfig(zls_version)
-        
+
         -- Launch ZLS for existing Zig buffers
         local buf_lists = vim.api.nvim_list_bufs()
         for _, bufnr in pairs(buf_lists) do
-            local ok, filetype = pcall(vim.api.nvim_get_option_value, "filetype", { buf = bufnr })
+            local ok, filetype = pcall(
+                vim.api.nvim_get_option_value,
+                "filetype",
+                { buf = bufnr }
+            )
             if ok and filetype == "zig" then
                 M.launch_zls(bufnr)
             end
         end
     end
-    
+
     -- Extraction completion callback
     local function after_extract(zls_version)
         return vim.schedule_wrap(function()
             remove_zls_tmp(zls_version)
-            
+
             if verify_local_zls_version(zls_version) then
                 util.Info("Successfully installed ZLS version " .. zls_version)
                 after_install(zls_version)
@@ -502,7 +525,7 @@ function M.zls_install(_)
             end
         end)
     end
-    
+
     -- Download completion callback
     local function after_download(zls_version)
         return function(success, ctx)
@@ -510,41 +533,47 @@ function M.zls_install(_)
                 util.Info("Download completed, extracting ZLS...")
                 extract_zls_archive(zls_version, after_extract(zls_version))
             else
-                util.Error("Failed to download ZLS, status: " .. tostring(ctx.status))
+                util.Error(
+                    "Failed to download ZLS, status: " .. tostring(ctx.status)
+                )
             end
         end
     end
-    
+
     -- Metadata fetch completion callback
     local function after_meta(info)
         if not info then
-            util.Error("Failed to get ZLS metadata, please check your network connection")
+            util.Error(
+                "Failed to get ZLS metadata, please check your network connection"
+            )
             return
         end
-        
+
         -- Handle error codes
         local error_messages = {
             [0] = "Current Zig version is not supported by ZLS",
             [1] = "Unsupported release cycle, ZLS hasn't been updated yet",
             [2] = "Incompatible development build, non-ZLS compatible",
-            [3] = "Incompatible tagged release, non-ZLS compatible"
+            [3] = "Incompatible tagged release, non-ZLS compatible",
         }
-        
+
         if info.code and error_messages[info.code] then
             util.Warn(error_messages[info.code])
             return
         end
-        
+
         local arch_info = get_arch_info(info)
         if not arch_info then
-            util.Error("Unsupported architecture: " .. util.arch() .. "-" .. util.sys)
+            util.Error(
+                "Unsupported architecture: " .. util.arch() .. "-" .. util.sys
+            )
             return
         end
-        
+
         util.Info("Downloading ZLS version " .. info.version .. "...")
         M.download_zls(info.version, arch_info, after_download(info.version))
     end
-    
+
     M.get_meta_json(zig_version, after_meta)
 end
 
@@ -557,35 +586,40 @@ local function cb_zls_uninstall(params)
         util.Info("Please specify ZLS version to uninstall")
         return
     end
-    
+
     local zls_version = params[1]
     local available_versions = M.local_zls_lists()
-    
+
     if not vim.tbl_contains(available_versions, zls_version) then
-        util.Info("Invalid ZLS version. Available versions: " .. table.concat(available_versions, ", "))
+        util.Info(
+            "Invalid ZLS version. Available versions: "
+                .. table.concat(available_versions, ", ")
+        )
         return
     end
-    
+
     -- Check if the version is currently in use
     if zls_version == M.get_current_lsp_zls_version() then
         local zls_clients = vim.lsp.get_clients({ name = "zls" })
         if #zls_clients > 0 then
-            util.Warn("Cannot uninstall ZLS version that is currently running. Please stop ZLS first.")
+            util.Warn(
+                "Cannot uninstall ZLS version that is currently running. Please stop ZLS first."
+            )
             return
         end
     end
-    
+
     -- Perform uninstallation
     db_delete_with_zls_version(zls_version)
     remove_zls(zls_version)
-    
+
     if not save_db() then
         util.Error("Failed to update database after uninstallation")
         return
     end
-    
+
     util.Info("Successfully uninstalled ZLS version " .. zls_version)
-    
+
     if zls_version == M.get_current_lsp_zls_version() then
         M.set_current_lsp_zls_version(nil)
     end
@@ -602,7 +636,12 @@ end
 --- Register ZLS-related commands
 local function set_command()
     cmd.set_command(M.zls_install, nil, "zls", "install")
-    cmd.set_command(cb_zls_uninstall, complete_zls_uninstall, "zls", "uninstall")
+    cmd.set_command(
+        cb_zls_uninstall,
+        complete_zls_uninstall,
+        "zls",
+        "uninstall"
+    )
 end
 
 --- Initialize the ZLS module
@@ -620,39 +659,42 @@ function M.get_meta_json(zig_version, callback)
         util.Error("Invalid parameters for get_meta_json")
         return
     end
-    
+
     local function handle_response(response)
         if response.status ~= 200 then
-            util.Error("Failed to fetch ZLS metadata: HTTP " .. tostring(response.status))
+            util.Error(
+                "Failed to fetch ZLS metadata: HTTP "
+                    .. tostring(response.status)
+            )
             callback(nil)
             return
         end
-        
+
         local info = safe_json_decode(response.body)
         if not info then
             util.Error("Failed to parse ZLS metadata JSON")
             callback(nil)
             return
         end
-        
+
         -- Save successful metadata to database
         if not info.code then
             set_zls_version_to_db(zig_version, info.version)
             save_db()
         end
-        
+
         callback(info)
     end
-    
-    local query = { 
-        zig_version = zig_version, 
-        compatibility = "only-runtime" 
+
+    local query = {
+        zig_version = zig_version,
+        compatibility = "only-runtime",
     }
-    
-    curl.get(ZLS_META_URL, { 
-        query = query, 
+
+    curl.get(ZLS_META_URL, {
+        query = query,
         callback = vim.schedule_wrap(handle_response),
-        timeout = 30000  -- 30 second timeout
+        timeout = 30000, -- 30 second timeout
     })
 end
 
@@ -665,39 +707,40 @@ function M.download_zls(zls_version, arch_info, callback)
         util.Error("Invalid parameters for download_zls")
         return
     end
-    
+
     -- Ensure tmp directory exists
     ensure_directory(config.tmp_path)
-    
+
     local download_path = vim.fs.joinpath(config.tmp_path, zls_version)
-    
+
     -- Remove existing download if present
     remove_path_safe(download_path)
-    
+
     local function handle_download(response)
         if response.status ~= 200 then
             callback(false, response)
             return
         end
-        
+
         -- Verify checksum if available
         local checksum_valid = true
         if arch_info.shasum then
-            checksum_valid = zig_ffi.check_shasum(download_path, arch_info.shasum)
+            checksum_valid =
+                zig_ffi.check_shasum(download_path, arch_info.shasum)
             if not checksum_valid then
                 util.Error("ZLS download checksum verification failed")
                 remove_path_safe(download_path)
             end
         end
-        
+
         callback(checksum_valid, response)
     end
-    
+
     -- Download ZLS archive
     curl.get(arch_info.tarball, {
         output = download_path,
         callback = vim.schedule_wrap(handle_download),
-        timeout = 300000  -- 5 minute timeout for large files
+        timeout = 300000, -- 5 minute timeout for large files
     })
 end
 
