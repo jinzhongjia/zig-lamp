@@ -61,31 +61,67 @@ local function is_valid_identifier(str)
     return not str:find("-") and first_char:match("[%a_]")
 end
 
--- Convert Lua data to Zig Object Notation (ZON) format
-function M.data2zon(obj)
+-- Check if a string should be formatted as a symbol (.name) or string ("name")
+local function should_be_symbol(str)
+    -- Common cases that should be symbols
+    if str:match("^[%a_][%w_]*$") then  -- Valid identifier
+        return true
+    end
+    return false
+end
+
+  function M.data2zon(obj, context)
     local obj_type = type(obj)
+    local ctx = context or {}
     
     if obj_type == "table" then
-        local result = ".{"
         local is_arr = is_array(obj)
+        local items = {}
         
         for key, value in pairs(obj) do
             if not is_arr then
+                local key_str
                 if is_valid_identifier(key) then
-                    result = result .. "." .. key .. "="
+                    key_str = "." .. key .. " = "
                 else
-                    result = result .. '.@"' .. key .. '"='
+                    key_str = '.@"' .. key .. '" = '
                 end
+                table.insert(items, key_str .. M.data2zon(value, { parent_key = key }))
+            else
+                table.insert(items, M.data2zon(value, { in_array = true }))
             end
-            result = result .. M.data2zon(value) .. ","
         end
-        return result .. "}"
+        
+        if #items == 0 then
+            return ".{}"
+        end
+        
+        -- Format with proper indentation and newlines
+        if is_arr then
+            -- Always format arrays as multi-line for better readability
+            local content = table.concat(items, ",\n    ")
+            return ".{\n    " .. content .. ",\n}"
+        else
+            -- Object format
+            local content = table.concat(items, ",\n    ")
+            return ".{\n    " .. content .. ",\n}"
+        end
         
     elseif obj_type == "string" then
-        return string.format('"%s"', obj)
+        -- Use symbol format for simple identifiers, but not in array context
+        -- Arrays should always use string format for paths and other values
+        if should_be_symbol(obj) and not ctx.in_array then
+            return "." .. obj
+        else
+            return string.format('"%s"', obj)
+        end
     elseif obj_type == "boolean" then
         return obj and "true" or "false"
     elseif obj_type == "number" then
+        -- Format hex numbers properly
+        if obj >= 0x1000000 then  -- Large numbers likely to be hex
+            return string.format("0x%x", obj)
+        end
         return tostring(obj)
     end
     
@@ -94,20 +130,66 @@ end
 
 -- Convert build.zon info to ZON format
 function M.wrap_j2zon(info)
-    local components = {
-        ".name = " .. M.data2zon(info.name or ""),
-        ".version = " .. M.data2zon(info.version or ""),
-        ".fingerprint = " .. info.fingerprint,
-    }
+    local components = {}
     
-    if info.minimum_zig_version then
-        table.insert(components, ".minimum_zig_version = " .. M.data2zon(info.minimum_zig_version))
+    -- Add name
+    if info.name and info.name ~= "" then
+        table.insert(components, "    .name = " .. M.data2zon(info.name))
     end
     
-    table.insert(components, ".dependencies = " .. M.data2zon(info.dependencies or {}))
-    table.insert(components, ".paths=" .. M.data2zon(info.paths or {}))
+    -- Add version  
+    if info.version and info.version ~= "" then
+        table.insert(components, "    .version = " .. M.data2zon(info.version))
+    end
     
-    return ".{" .. table.concat(components, ",") .. "}"
+    -- Add fingerprint (format as hex if it's a number)
+    if info.fingerprint then
+        local fingerprint_str
+        if type(info.fingerprint) == "number" then
+            fingerprint_str = string.format("0x%x", info.fingerprint)
+        else
+            fingerprint_str = tostring(info.fingerprint)
+        end
+        table.insert(components, "    .fingerprint = " .. fingerprint_str)
+    end
+    
+    -- Add minimum zig version
+    if info.minimum_zig_version and info.minimum_zig_version ~= "" then
+        table.insert(components, "    .minimum_zig_version = " .. M.data2zon(info.minimum_zig_version))
+    end
+    
+    -- Add dependencies
+    local deps = info.dependencies or {}
+    if vim.tbl_isempty(deps) then
+        table.insert(components, "    .dependencies = .{}")
+    else
+        table.insert(components, "    .dependencies = " .. M.data2zon(deps))
+    end
+    
+    -- Add paths
+    local paths = info.paths or {}
+    if vim.tbl_isempty(paths) or (type(paths) == "table" and #paths == 1 and paths[1] == "") then
+        table.insert(components, "    .paths = .{}")
+    else
+        -- Filter out empty paths
+        local filtered_paths = {}
+        for _, path in ipairs(paths) do
+            if path ~= "" then
+                table.insert(filtered_paths, path)
+            end
+        end
+        
+        if #filtered_paths == 0 then
+            table.insert(components, "    .paths = .{}")
+        else
+            local paths_zon = M.data2zon(filtered_paths)
+            -- Replace the default indentation with proper indentation
+            paths_zon = paths_zon:gsub("\n    ", "\n        ")
+            table.insert(components, "    .paths = " .. paths_zon)
+        end
+    end
+    
+    return ".{\n" .. table.concat(components, ",\n") .. ",\n}"
 end
 
 -- Adjust color brightness for UI theming
