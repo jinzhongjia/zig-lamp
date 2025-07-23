@@ -1,28 +1,28 @@
 const std = @import("std");
+const builtin = @import("builtin");
 
 pub fn build(b: *std.Build) void {
     const target = b.standardTargetOptions(.{});
     const optimize = b.standardOptimizeOption(.{});
 
-    const lib = b.addSharedLibrary(.{
+    const lib = b.addLibrary(.{
         .name = "zig-lamp",
-        .root_source_file = b.path("src/zig-lamp.zig"),
-        .target = target,
-        .optimize = .ReleaseFast,
+        .root_module = b.addModule("zigLamp", .{
+            .root_source_file = b.path("src/zig-lamp.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     b.installArtifact(lib);
 
-    _ = b.addModule("zigLamp", .{
-        .root_source_file = b.path("src/zig-lamp.zig"),
-        .target = target,
-        .optimize = optimize,
-    });
-
     const lib_unit_tests = b.addTest(.{
-        .root_source_file = b.path("src/zig-lamp.zig"),
-        .target = target,
-        .optimize = optimize,
+        .name = "zig-lamp-tests",
+        .root_module = b.addModule("zigLampTests", .{
+            .root_source_file = b.path("src/zig-lamp.zig"),
+            .target = target,
+            .optimize = optimize,
+        }),
     });
 
     const run_lib_unit_tests = b.addRunArtifact(lib_unit_tests);

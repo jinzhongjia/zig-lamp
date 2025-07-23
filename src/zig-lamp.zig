@@ -16,7 +16,7 @@ pub fn sha256Digest(
     file: fs.File,
 ) ![Sha256.digest_length]u8 {
     var sha256 = Sha256.init(.{});
-    const rdr = file.reader();
+    var rdr = file.reader(&.{});
 
     var buf: [BUF_SIZE]u8 = undefined;
     var n = try rdr.read(&buf);
@@ -43,7 +43,7 @@ export fn check_shasum(file_path: [*c]const u8, shasum: [*c]const u8) bool {
     const digest = sha256Digest(file) catch return false;
 
     var hash: [64]u8 = std.mem.zeroes([64]u8);
-    _ = std.fmt.bufPrint(&hash, "{s}", .{std.fmt.fmtSliceHexLower(&digest)}) catch return false;
+    _ = std.fmt.bufPrint(&hash, "{x}", .{digest}) catch return false;
     for (0..shasum_len) |i| {
         if (shasum[i] != hash[i]) {
             return false;
@@ -72,7 +72,7 @@ export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
 
     zon2json.parse(
         _allocator,
-        file.reader().any(),
+        file.reader(&.{}).interface,
         arr.writer(),
         void{},
         .{ .file_name = file_path[0..file_path_len] },
