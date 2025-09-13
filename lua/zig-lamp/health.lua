@@ -30,10 +30,10 @@ local function check_curl()
 end
 
 local function check_tar()
-    local util = require("zig-lamp.core.core_util")
-    if util.sys ~= "windows" then
+    local platform = require("zig-lamp.core.core_platform")
+    if not platform.is_windows then
         health.start("check tar")
-        if vim.fn.executable("tar") == 1 then
+        if platform.executable_exists("tar") then
             health.ok("found tar")
         else
             health.error("not found tar")
@@ -42,10 +42,10 @@ local function check_tar()
 end
 
 local function check_unzip()
-    local util = require("zig-lamp.core.core_util")
-    if util.sys == "windows" then
+    local platform = require("zig-lamp.core.core_platform")
+    if platform.is_windows then
         health.start("check unzip")
-        if vim.fn.executable("unzip") == 1 then
+        if platform.executable_exists("unzip") then
             health.ok("found unzip")
         else
             health.error("not found unzip")
@@ -54,13 +54,13 @@ local function check_unzip()
 end
 
 local function check_lib()
-    health.start("check dynamic library")
-    local zig_ffi = require("zig-lamp.core.core_ffi")
-    if zig_ffi.get_lamp() then
-        health.ok("found lib")
+    health.start("check dynamic library (optional)")
+    local success, zig_ffi = pcall(require, "zig-lamp.core.core_ffi")
+    if success and zig_ffi.get_lamp() then
+        health.ok("found lib - checksum verification available")
     else
-        health.error(
-            'not found lib, you can use command ":ZigLamp build" to build library'
+        health.warn(
+            'dynamic library not found - ZLS install will work but skip checksum verification. Run ":ZigLamp build" to enable checksum verification'
         )
     end
 end

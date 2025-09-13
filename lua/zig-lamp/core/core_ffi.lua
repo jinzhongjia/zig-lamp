@@ -1,5 +1,6 @@
 -- FFI bindings for zig-lamp native library
 -- Provides interface to Zig compiled functions for file operations and parsing
+-- Enhanced version with better memory management and error handling
 
 local vim = vim
 local ffi = require("ffi")
@@ -8,14 +9,39 @@ local util = require("zig-lamp.core.core_util")
 
 local M = {}
 
--- Define C function signatures
-ffi.cdef([[
-    bool check_shasum(const char* file_path, const char* shasum);
-    const char* get_build_zon_info(const char* file_path);
-    void free_build_zon_info();
-    const char* fmt_zon(const char* source_code);
-    void free_fmt_zon();
-]])
+-- FFI library status
+local _ffi_initialized = false
+local _ffi_error = nil
+
+-- Initialize FFI definitions
+local function init_ffi_definitions()
+    if _ffi_initialized then
+        return true
+    end
+
+    local success, err = pcall(function()
+        ffi.cdef([[
+            bool check_shasum(const char* file_path, const char* shasum);
+            const char* get_build_zon_info(const char* file_path);
+            void free_build_zon_info();
+            const char* fmt_zon(const char* source_code);
+            void free_fmt_zon();
+        ]])
+    end)
+
+    if success then
+        _ffi_initialized = true
+        return true
+    else
+        _ffi_error = err
+        util.Error("Failed to initialize FFI definitions", {
+            operation = "ffi.cdef",
+            error = tostring(err),
+            suggestion = "Please check LuaJIT environment and FFI support",
+        })
+        return false
+    end
+end
 
 -- Find plugin root directory by traversing up from current file
 local function find_plugin_path()
@@ -23,13 +49,7 @@ local function find_plugin_path()
 
     while current_dir do
         -- Check for expected plugin structure
-        local marker_file = vim.fs.joinpath(
-            current_dir,
-            "lua",
-            "zig-lamp",
-            "core",
-            "core_ffi.lua"
-        )
+        local marker_file = vim.fs.joinpath(current_dir, "lua", "zig-lamp", "core", "core_ffi.lua")
         if vim.loop.fs_stat(marker_file) then
             return current_dir
         end
@@ -48,28 +68,31 @@ local plugin_path = vim.fs.normalize(find_plugin_path() or ".")
 
 -- Get platform-specific library path
 local function get_library_path()
-    local is_windows = package.config:sub(1, 1) == "\\"
+    local platform = require("zig-lamp.core.core_platform")
+    local lib_name = platform.library_name("zig-lamp")
 
-    if is_windows then
-        return vim.fs.joinpath(plugin_path, "zig-out", "bin", "zig-lamp.dll")
-    elseif vim.fn.has("macunix") == 1 then
-        return vim.fs.joinpath(
-            plugin_path,
-            "zig-out",
-            "lib",
-            "libzig-lamp.dylib"
-        )
+    if platform.is_windows then
+        -- Windows DLL 通常放在 bin 目录
+        return vim.fs.joinpath(plugin_path, "zig-out", "bin", lib_name)
     else
-        return vim.fs.joinpath(plugin_path, "zig-out", "lib", "libzig-lamp.so")
+        -- Unix 系统的共享库放在 lib 目录
+        return vim.fs.joinpath(plugin_path, "zig-out", "lib", lib_name)
     end
 end
 
 local library_path = vim.fs.normalize(get_library_path())
 local _zig_lamp = nil
+local _load_attempts = 0
+local _max_load_attempts = 3
 
--- Get FFI library instance (lazy loaded)
+-- Get FFI library instance (lazy loaded with enhanced error handling)
 function M.get_lamp()
-    -- Return nil if library is known to be missing
+    -- Check if FFI is initialized
+    if not init_ffi_definitions() then
+        return nil
+    end
+
+    -- Return nil if library is known to be missing after max attempts
     if _zig_lamp == true then
         return nil
     end
@@ -79,14 +102,53 @@ function M.get_lamp()
         return _zig_lamp
     end
 
-    -- Try to load library
-    if path:new(library_path):exists() then
-        _zig_lamp = ffi.load(library_path)
-        return _zig_lamp
+    -- Check load attempt count
+    if _load_attempts >= _max_load_attempts then
+        util.Error("Failed to load FFI library", {
+            operation = "ffi.load",
+            file = library_path,
+            error = "Exceeded maximum attempts",
+            suggestion = "Please run ':ZigLamp build' to build the library",
+        })
+        _zig_lamp = true
+        return nil
     end
 
-    -- Mark as missing to avoid repeated attempts
-    _zig_lamp = true
+    _load_attempts = _load_attempts + 1
+
+    -- Try to load library
+    if path:new(library_path):exists() then
+        local success, result = util.safe_call(function()
+            return ffi.load(library_path)
+        end, {
+            operation = "ffi.load",
+            file = library_path,
+        })
+
+        if success then
+            _zig_lamp = result
+            util.Info("FFI library loaded successfully", { file = library_path })
+            return _zig_lamp
+        else
+            util.Error("Failed to load FFI library", {
+                operation = "ffi.load",
+                file = library_path,
+                error = tostring(result),
+                suggestion = "Please rebuild the library or check file permissions",
+            })
+        end
+    else
+        util.Warn("FFI library file not found", {
+            file = library_path,
+            suggestion = "Please run ':ZigLamp build' to build the library",
+        })
+    end
+
+    -- Mark as missing only after all attempts failed
+    if _load_attempts >= _max_load_attempts then
+        _zig_lamp = true
+    end
+
     return nil
 end
 
@@ -115,11 +177,11 @@ end
 function M.check_shasum(file_path, shasum)
     local zig_lamp = M.get_lamp()
     if not zig_lamp then
-        util.Info("Native library not found, skipping shasum check")
+        util.Info("Native library not found, skipping checksum verification")
         return true
     end
 
-    util.Info("Checking file shasum")
+    util.Info("Verifying file checksum")
     return zig_lamp.check_shasum(file_path, shasum)
 end
 

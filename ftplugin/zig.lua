@@ -16,9 +16,7 @@ do
                 zls.zls_install({})
                 return
             end
-            util.Warn(
-                'Not found valid zls, please run "ZigLamp zls install" to install it.'
-            )
+            util.Warn('Not found valid zls, please run "ZigLamp zls install" to install it.')
             return
         end
 

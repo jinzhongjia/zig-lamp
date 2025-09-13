@@ -29,13 +29,7 @@ local function setup_syntax_highlighting()
 
             -- Apply syntax patterns
             for _, pattern in ipairs(syntax_patterns) do
-                vim.cmd(
-                    string.format(
-                        [[syntax match %s %s]],
-                        pattern[1],
-                        pattern[2]
-                    )
-                )
+                vim.cmd(string.format([[syntax match %s %s]], pattern[1], pattern[2]))
             end
 
             -- Define highlight links
@@ -48,13 +42,7 @@ local function setup_syntax_highlighting()
             }
 
             for _, hl in ipairs(highlights) do
-                vim.cmd(
-                    string.format(
-                        [[highlight default link %s %s]],
-                        hl[1],
-                        hl[2]
-                    )
-                )
+                vim.cmd(string.format([[highlight default link %s %s]], hl[1], hl[2]))
             end
         end,
     })
@@ -91,10 +79,7 @@ local function create_info_content()
         if current_lsp_zls then
             table.insert(content, "  lsp using version: " .. current_lsp_zls)
         elseif zls.if_using_sys_zls() and sys_zls_version then
-            table.insert(
-                content,
-                "  lsp using version: sys " .. sys_zls_version
-            )
+            table.insert(content, "  lsp using version: sys " .. sys_zls_version)
         end
 
         -- Local ZLS versions
@@ -158,9 +143,7 @@ local function handle_build_command(args)
 
     -- Check if lamp lib is already loaded
     if zig_ffi.is_loaded() then
-        util.Warn(
-            "Lamp library is already loaded! Please restart Neovim and run the command again."
-        )
+        util.Warn("Lamp library is already loaded! Please restart Neovim and run the command again.")
         return
     end
 
@@ -176,13 +159,7 @@ local function handle_build_command(args)
                 zig_ffi.lazy_load()
             end),
             vim.schedule_wrap(function(code, signal)
-                util.Error(
-                    string.format(
-                        "Build lamp library failed! Exit code: %d, Signal: %d",
-                        code,
-                        signal
-                    )
-                )
+                util.Error(string.format("Build lamp library failed! Exit code: %d, Signal: %d", code, signal))
             end)
         )
         build_job:start()
@@ -198,10 +175,7 @@ local function handle_build_command(args)
             end)
         )
 
-        local timeout = args[2]
-                and tonumber(args[2])
-                and math.floor(tonumber(args[2]))
-            or 15000
+        local timeout = args[2] and tonumber(args[2]) and math.floor(tonumber(args[2])) or 15000
         build_job:sync(timeout)
     else
         util.Warn("Invalid parameter: " .. mode .. ". Use 'async' or 'sync'.")

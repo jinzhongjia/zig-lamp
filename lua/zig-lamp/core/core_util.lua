@@ -5,44 +5,84 @@ local vim = vim
 
 local M = {}
 
--- Platform and architecture detection
-local arch = vim.uv.os_uname().machine
+-- Lazy load error handler module to avoid circular dependency
+local _error_handler = nil
+local function get_error_handler()
+    if not _error_handler then
+        _error_handler = require("zig-lamp.core.core_error")
+    end
+    return _error_handler
+end
 
--- Get normalized architecture string
+-- Lazy load platform module to avoid circular dependency
+local _platform = nil
+local function get_platform()
+    if not _platform then
+        _platform = require("zig-lamp.core.core_platform")
+    end
+    return _platform
+end
+
+-- Backward compatible platform information
 function M.arch()
-    return arch == "arm64" and "aarch64" or arch
+    return get_platform().arch
 end
 
--- Detect operating system
-if vim.fn.has("win32") == 1 or vim.fn.has("win64") == 1 then
-    M.sys = "windows"
-elseif vim.fn.has("macunix") == 1 then
-    M.sys = "macos"
-elseif vim.fn.has("unix") == 1 then
-    M.sys = "linux"
+M.sys = nil -- Lazy initialization
+
+-- Get system type (lazy initialization to avoid circular dependency)
+local function get_sys()
+    if M.sys == nil then
+        M.sys = get_platform().os
+    end
+    return M.sys
 end
 
--- File system utilities
+-- Rewrite sys metatable to support lazy loading
+setmetatable(M, {
+    __index = function(t, k)
+        if k == "sys" then
+            return get_sys()
+        end
+        return rawget(t, k)
+    end,
+})
+
+-- File system utilities (using platform module)
 function M.mkdir(path)
-    vim.fn.mkdir(path, "p")
+    local platform = get_platform()
+    local success, err = platform.mkdir(path)
+    if not success then
+        get_error_handler().error("Failed to create directory", {
+            operation = "mkdir",
+            file = path,
+            error = err,
+        })
+        return false
+    end
+    return true
 end
 
--- Notification system with consistent prefix
-local NOTIFY_PREFIX = "[ZigLamp]: "
-
--- Show error notification
-function M.Error(message)
-    vim.api.nvim_notify(NOTIFY_PREFIX .. message, vim.log.levels.ERROR, {})
+-- Enhanced notification system (backward compatible)
+function M.Error(message, context)
+    get_error_handler().error(message, context)
 end
 
--- Show info notification
-function M.Info(message)
-    vim.api.nvim_notify(NOTIFY_PREFIX .. message, vim.log.levels.INFO, {})
+function M.Info(message, context)
+    get_error_handler().info(message, context)
 end
 
--- Show warning notification
-function M.Warn(message)
-    vim.api.nvim_notify(NOTIFY_PREFIX .. message, vim.log.levels.WARN, {})
+function M.Warn(message, context)
+    get_error_handler().warn(message, context)
+end
+
+-- New error handling functions
+function M.safe_call(func, error_context)
+    return get_error_handler().safe_call(func, error_context)
+end
+
+function M.wrap_async(func, error_context)
+    return get_error_handler().wrap_async(func, error_context)
 end
 
 -- Check if table is an array (consecutive integer keys starting from 1)
@@ -88,10 +128,7 @@ function M.data2zon(obj, context)
                 else
                     key_str = '.@"' .. key .. '" = '
                 end
-                table.insert(
-                    items,
-                    key_str .. M.data2zon(value, { parent_key = key })
-                )
+                table.insert(items, key_str .. M.data2zon(value, { parent_key = key }))
             else
                 table.insert(items, M.data2zon(value, { in_array = true }))
             end
@@ -159,11 +196,7 @@ function M.wrap_j2zon(info)
 
     -- Add minimum zig version
     if info.minimum_zig_version and info.minimum_zig_version ~= "" then
-        table.insert(
-            components,
-            "    .minimum_zig_version = "
-                .. M.data2zon(info.minimum_zig_version)
-        )
+        table.insert(components, "    .minimum_zig_version = " .. M.data2zon(info.minimum_zig_version))
     end
 
     -- Add dependencies
@@ -176,10 +209,7 @@ function M.wrap_j2zon(info)
 
     -- Add paths
     local paths = info.paths or {}
-    if
-        vim.tbl_isempty(paths)
-        or (type(paths) == "table" and #paths == 1 and paths[1] == "")
-    then
+    if vim.tbl_isempty(paths) or (type(paths) == "table" and #paths == 1 and paths[1] == "") then
         table.insert(components, "    .paths = .{}")
     else
         -- Filter out empty paths

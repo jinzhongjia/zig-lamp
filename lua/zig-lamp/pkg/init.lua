@@ -53,13 +53,7 @@ local function get_hash(url)
     local result = handle:wait()
 
     if result.code ~= 0 then
-        util.Error(
-            string.format(
-                "Failed to fetch package: %s (exit code: %d)",
-                url,
-                result.code
-            )
-        )
+        util.Error(string.format("Failed to fetch package: %s (exit code: %d)", url, result.code))
         return nil
     end
 
@@ -120,18 +114,10 @@ local function execute_zig_build_command(command_args, target_name, action_name)
     }):sync()
 
     if result and #result > 0 then
-        util.Info(
-            string.format(
-                "%s target '%s' completed successfully",
-                action_name,
-                target_name
-            )
-        )
+        util.Info(string.format("%s target '%s' completed successfully", action_name, target_name))
         return true
     else
-        util.Error(
-            string.format("Failed to %s target '%s'", action_name, target_name)
-        )
+        util.Error(string.format("Failed to %s target '%s'", action_name, target_name))
         return false
     end
 end
@@ -164,8 +150,7 @@ local function process_zon_operation(operation_args, action_name)
 
     for _, target in ipairs(zon_info.targets) do
         if target.name == target_file then
-            local command =
-                vim.list_extend({ "zig", "build-official" }, operation_args)
+            local command = vim.list_extend({ "zig", "build-official" }, operation_args)
             table.insert(command, "--target")
             table.insert(command, target.name)
 
@@ -173,12 +158,7 @@ local function process_zon_operation(operation_args, action_name)
         end
     end
 
-    util.Warn(
-        string.format(
-            "Target file '%s' not found in build configuration",
-            target_file
-        )
-    )
+    util.Warn(string.format("Target file '%s' not found in build configuration", target_file))
     return false
 end
 
@@ -284,9 +264,7 @@ local function render(ctx)
     end
 
     -- Dependencies section - shows all package dependencies
-    local dep_count = zon_info.dependencies
-            and vim.tbl_count(zon_info.dependencies)
-        or 0
+    local dep_count = zon_info.dependencies and vim.tbl_count(zon_info.dependencies) or 0
     local deps_header = string.format("  Dependencies [%d]: ", dep_count)
     table.insert(content, deps_header)
     add_highlight(highlights, "Title", current_line, deps_header, "")
@@ -304,24 +282,12 @@ local function render(ctx)
             if dep_info.url then
                 local url_prefix = "      url: "
                 table.insert(content, url_prefix .. dep_info.url)
-                add_highlight(
-                    highlights,
-                    "Underlined",
-                    current_line,
-                    dep_info.url,
-                    url_prefix
-                )
+                add_highlight(highlights, "Underlined", current_line, dep_info.url, url_prefix)
                 current_line = current_line + 1
             elseif dep_info.path then
                 local path_prefix = "      path: "
                 table.insert(content, path_prefix .. dep_info.path)
-                add_highlight(
-                    highlights,
-                    "Underlined",
-                    current_line,
-                    dep_info.path,
-                    path_prefix
-                )
+                add_highlight(highlights, "Underlined", current_line, dep_info.path, path_prefix)
                 current_line = current_line + 1
             else
                 table.insert(content, "      [no url or path specified]")
@@ -333,20 +299,13 @@ local function render(ctx)
                 local hash_prefix = "      hash: "
                 local hash_value = dep_info.hash or "[none]"
                 table.insert(content, hash_prefix .. hash_value)
-                add_highlight(
-                    highlights,
-                    "Underlined",
-                    current_line,
-                    hash_value,
-                    hash_prefix
-                )
+                add_highlight(highlights, "Underlined", current_line, hash_value, hash_prefix)
                 current_line = current_line + 1
             end
 
             -- Lazy loading flag - indicates if dependency should be loaded on-demand
             local lazy_prefix = "      lazy: "
-            local lazy_value = dep_info.lazy == nil and "[unset]"
-                or tostring(dep_info.lazy)
+            local lazy_value = dep_info.lazy == nil and "[unset]" or tostring(dep_info.lazy)
             table.insert(content, lazy_prefix .. lazy_value)
             current_line = current_line + 1
         end
@@ -358,14 +317,7 @@ local function render(ctx)
 
     -- Apply syntax highlighting
     for _, hl in ipairs(highlights) do
-        api.nvim_buf_add_highlight(
-            buffer,
-            HELP_NAMESPACE,
-            hl.group,
-            hl.line,
-            hl.col_start,
-            hl.col_end
-        )
+        api.nvim_buf_add_highlight(buffer, HELP_NAMESPACE, hl.group, hl.line, hl.col_start, hl.col_end)
     end
 
     render_help_text(buffer)
@@ -389,11 +341,7 @@ local function delete_cb(ctx)
         lnum = lnum - 1 -- Skip paths header
 
         -- Handle path deletion
-        if
-            ctx.zon_info.paths
-            and #ctx.zon_info.paths > 0
-            and ctx.zon_info.paths[1] ~= ""
-        then
+        if ctx.zon_info.paths and #ctx.zon_info.paths > 0 and ctx.zon_info.paths[1] ~= "" then
             for index, _ in pairs(ctx.zon_info.paths) do
                 if lnum - 1 == 0 then
                     table.remove(ctx.zon_info.paths, index)
@@ -514,11 +462,7 @@ local function edit_cb(ctx)
                 if not input then
                     return
                 end
-                if
-                    ctx.zon_info.paths
-                    and #ctx.zon_info.paths == 1
-                    and ctx.zon_info.paths[1] == ""
-                then
+                if ctx.zon_info.paths and #ctx.zon_info.paths == 1 and ctx.zon_info.paths[1] == "" then
                     ctx.zon_info.paths = { input }
                 else
                     ctx.zon_info.paths = ctx.zon_info.paths or {}
@@ -531,11 +475,7 @@ local function edit_cb(ctx)
         lnum = lnum - 1
 
         -- Edit existing paths
-        if
-            ctx.zon_info.paths
-            and #ctx.zon_info.paths > 0
-            and ctx.zon_info.paths[1] ~= ""
-        then
+        if ctx.zon_info.paths and #ctx.zon_info.paths > 0 and ctx.zon_info.paths[1] ~= "" then
             for index, val in pairs(ctx.zon_info.paths) do
                 if lnum - 1 == 0 then
                     vim.ui.input({
@@ -606,10 +546,7 @@ local function edit_cb(ctx)
                                 return
                             end
                             vim.ui.input({
-                                prompt = string.format(
-                                    "Enter value for dependency %s: ",
-                                    choice
-                                ),
+                                prompt = string.format("Enter value for dependency %s: ", choice),
                             }, function(input)
                                 if not input then
                                     return
@@ -620,8 +557,7 @@ local function edit_cb(ctx)
                                     ctx.zon_info.dependencies[name].url = input
                                     local hash = get_hash(input)
                                     if hash then
-                                        ctx.zon_info.dependencies[name].hash =
-                                            hash
+                                        ctx.zon_info.dependencies[name].hash = hash
                                     end
                                 end
                                 render(ctx)
@@ -632,10 +568,7 @@ local function edit_cb(ctx)
 
                     local is_url = dep_info.url ~= nil
                     vim.ui.input({
-                        prompt = string.format(
-                            "Enter value for dependency %s: ",
-                            is_url and "url" or "path"
-                        ),
+                        prompt = string.format("Enter value for dependency %s: ", is_url and "url" or "path"),
                         default = is_url and dep_info.url or dep_info.path,
                     }, function(input)
                         if not input then
@@ -768,11 +701,7 @@ local function switch_cb(ctx)
         lnum = lnum - 1 -- paths header
 
         -- Skip path lines
-        if
-            ctx.zon_info.paths
-            and #ctx.zon_info.paths > 0
-            and ctx.zon_info.paths[1] ~= ""
-        then
+        if ctx.zon_info.paths and #ctx.zon_info.paths > 0 and ctx.zon_info.paths[1] ~= "" then
             for _, _ in pairs(ctx.zon_info.paths) do
                 lnum = lnum - 1
             end
@@ -789,10 +718,7 @@ local function switch_cb(ctx)
 
                 if lnum > 0 and lnum < line_count + 1 then
                     vim.ui.input({
-                        prompt = string.format(
-                            "Enter value for dependency %s: ",
-                            (not is_url) and "url" or "path"
-                        ),
+                        prompt = string.format("Enter value for dependency %s: ", (not is_url) and "url" or "path"),
                     }, function(input)
                         if not input then
                             return
@@ -907,10 +833,7 @@ function M.setup()
     -- Setup custom highlight group for help text
     vim.schedule(function()
         local hl_config = {
-            fg = util.adjust_brightness(
-                vim.g.zig_lamp_pkg_help_fg or "#CF5C00",
-                30
-            ),
+            fg = util.adjust_brightness(vim.g.zig_lamp_pkg_help_fg or "#CF5C00", 30),
             italic = true,
         }
         api.nvim_set_hl(0, HELP_HL_GROUP, hl_config)

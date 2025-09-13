@@ -111,11 +111,7 @@ function M.set_command(cb, complete, ...)
         else
             -- Create new command
             local is_leaf = i == #cmd_path
-            local new_cmd = create_subcommand(
-                cmd_name,
-                is_leaf and cb or nil,
-                is_leaf and complete or nil
-            )
+            local new_cmd = create_subcommand(cmd_name, is_leaf and cb or nil, is_leaf and complete or nil)
             table.insert(current_sub, new_cmd)
             current_sub = new_cmd.sub
         end
