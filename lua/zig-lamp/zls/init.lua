@@ -415,21 +415,75 @@ end
 --- @param zls_version string|nil ZLS version to use (nil for system ZLS)
 --- @return boolean Success status
 function M.setup_lspconfig(zls_version)
+    -- Prefer Neovim builtin LSP config API (Neovim 0.11+)
+    local has_builtin = vim.lsp and vim.lsp.enable and vim.lsp.config ~= nil
+
+    local lsp_opt = vim.g.zig_lamp_zls_lsp_opt or {}
+
+    -- Resolve ZLS command (system or managed version)
+    local zls_cmd = "zls"
+    if zls_version ~= nil then
+        local managed_path = M.get_zls_path(zls_version)
+        if managed_path then
+            zls_cmd = managed_path
+        end
+    end
+
+    if has_builtin then
+        -- Build config compatible with builtin API
+        local conf = vim.tbl_deep_extend(
+            "force",
+            {
+                cmd = { zls_cmd },
+                filetypes = { "zig" },
+                -- Prefer project-local zls.json if present
+                root_markers = { { "zls.json", "build.zig" }, ".git" },
+                on_new_config = lsp_on_new_config,
+            },
+            lsp_opt
+        )
+
+        local ok_define = pcall(function()
+            if type(vim.lsp.config) == "function" then
+                vim.lsp.config("zls", conf)
+            else
+                -- Table-style API
+                vim.lsp.config["zls"] = conf
+            end
+        end)
+
+        if not ok_define then
+            util.Error("Failed to define builtin LSP config for zls")
+            return false
+        end
+
+        -- Enable zls for matching buffers
+        pcall(vim.lsp.enable, "zls")
+
+        M.set_current_lsp_zls_version(zls_version)
+        if_using_sys_zls = zls_version == nil
+        M.lsp_inited()
+        return true
+    end
+
+    -- Fallback to nvim-lspconfig for older Neovim
     local ok, lspconfig = pcall(require, "lspconfig")
     if not ok then
         util.Error("Failed to load lspconfig")
         return false
     end
 
-    local lsp_opt = vim.g.zig_lamp_zls_lsp_opt or {}
-    lsp_opt.autostart = false
-    lsp_opt.on_new_config = lsp_on_new_config
+    local cfg = vim.tbl_deep_extend("force", {
+        autostart = false,
+        on_new_config = lsp_on_new_config,
+        cmd = { zls_cmd },
+        filetypes = { "zig" },
+    }, lsp_opt)
 
-    lspconfig.zls.setup(lsp_opt)
+    lspconfig.zls.setup(cfg)
     M.set_current_lsp_zls_version(zls_version)
     if_using_sys_zls = zls_version == nil
     M.lsp_inited()
-
     return true
 end
 
@@ -437,6 +491,13 @@ end
 --- @param bufnr number Buffer number to launch ZLS for
 --- @return boolean Success status
 function M.launch_zls(bufnr)
+    -- Prefer builtin enable which will attach to open zig buffers
+    if vim.lsp and vim.lsp.enable then
+        local ok_enable = pcall(vim.lsp.enable, "zls")
+        return ok_enable
+    end
+
+    -- Fallback to lspconfig
     local ok, lspconfig_configs = pcall(require, "lspconfig.configs")
     if not ok then
         util.Error("Failed to load lspconfig.configs")
