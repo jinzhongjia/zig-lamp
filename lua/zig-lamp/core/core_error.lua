@@ -47,6 +47,52 @@ local current_log_level = M.Level.WARN
 local log_history = {}
 local max_history = 100
 
+-- Safely call nvim notifications even in fast-event contexts
+local function safe_notify(msg, vim_level, opts)
+    local function do_notify()
+        if type(vim.notify) == "function" then
+            pcall(vim.notify, msg, vim_level, opts or {})
+        else
+            -- Fallback to echo when notify is unavailable
+            pcall(vim.api.nvim_echo, { { tostring(msg) } }, true, {})
+        end
+    end
+    if vim.in_fast_event() then
+        vim.schedule(do_notify)
+    else
+        do_notify()
+    end
+end
+
+local function safe_notify_once(msg, vim_level)
+    local function do_notify_once()
+        if type(vim.notify_once) == "function" then
+            pcall(vim.notify_once, msg, vim_level)
+        else
+            -- Fallback to notify
+            if type(vim.notify) == "function" then
+                pcall(vim.notify, msg, vim_level)
+            else
+                pcall(vim.api.nvim_echo, { { tostring(msg) } }, true, {})
+            end
+        end
+    end
+    if vim.in_fast_event() then
+        vim.schedule(do_notify_once)
+    else
+        do_notify_once()
+    end
+end
+
+--- Unconditional user notification (bypass log level gating)
+---@param message string
+---@param level integer|nil vim.log.levels.*
+---@param opts table|nil
+function M.notify_always(message, level, opts)
+    local vim_level = level or vim.log.levels.INFO
+    safe_notify(NOTIFY_PREFIX .. tostring(message), vim_level, opts or { title = "ZigLamp" })
+end
+
 --- 设置日志级别
 ---@param level number 日志级别
 function M.set_log_level(level)
@@ -125,17 +171,15 @@ local function log(level, message, context, notify)
     local entry = log_entry(level, message, context)
     local formatted_msg = format_message(message, context)
 
-    -- 显示通知
+    -- 显示通知（在 fast event 中安全调度）
     if notify ~= false and level >= M.Level.INFO then
         local vim_level = level_to_vim[level] or vim.log.levels.INFO
-        vim.api.nvim_notify(NOTIFY_PREFIX .. formatted_msg, vim_level, {
-            title = "ZigLamp",
-        })
+        safe_notify(NOTIFY_PREFIX .. formatted_msg, vim_level, { title = "ZigLamp" })
     end
 
-    -- 输出到 Vim 日志
-    if level >= M.Level.DEBUG then
-        vim.notify_once(string.format("[ZigLamp:%s] %s", entry.level_name, formatted_msg), level_to_vim[level])
+    -- Output single-line log hint only for DEBUG level to avoid duplicates
+    if level == M.Level.DEBUG then
+        safe_notify_once(string.format("[ZigLamp:%s] %s", entry.level_name, formatted_msg), level_to_vim[level])
     end
 end
 

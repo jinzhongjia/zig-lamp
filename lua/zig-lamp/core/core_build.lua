@@ -93,6 +93,122 @@ local function clean_build(project_root)
     return success
 end
 
+--- Run `zig build` in current project, forwarding user args as-is
+---@param user_args string[] list of args passed after `build`
+---@param callback function|nil completion callback (success:boolean, stdout:string, stderr:string)
+---@return boolean success started
+function M.build_project(user_args, callback)
+    user_args = user_args or {}
+
+    local zig_available = select(1, check_zig())
+    if not zig_available then
+        util.Error("Zig is not available", { suggestion = "Please ensure Zig is installed and in PATH" })
+        if callback then
+            callback(false, "", "zig not available")
+        end
+        return false
+    end
+
+    local project_root = find_project_root()
+    if not project_root then
+        util.Error("build.zig not found", { suggestion = "Please run inside a Zig project directory" })
+        if callback then
+            callback(false, "", "build.zig not found")
+        end
+        return false
+    end
+
+    local job = require("plenary.job")
+
+    local args = { "build" }
+    for _, a in ipairs(user_args) do
+        table.insert(args, a)
+    end
+
+    util.Info("Running build command: zig " .. table.concat(args, " "))
+
+    job:new({
+        command = "zig",
+        args = args,
+        cwd = project_root,
+        on_exit = function(j, return_val)
+            local stdout = table.concat(j:result(), "\n")
+            local stderr = table.concat(j:stderr_result(), "\n")
+            if return_val == 0 then
+                require("zig-lamp.core.core_error").notify_always("Project build succeeded", vim.log.levels.INFO)
+                if callback then
+                    callback(true, stdout, stderr)
+                end
+            else
+                util.Error("Project build failed", { error = stderr or stdout })
+                if callback then
+                    callback(false, stdout, stderr)
+                end
+            end
+        end,
+    }):start()
+
+    return true
+end
+
+--- Run `zig build test` in current project, forwarding user args as-is
+---@param user_args string[] list of args passed after `test`
+---@param callback function|nil completion callback (success:boolean, stdout:string, stderr:string)
+---@return boolean success started
+function M.test_project(user_args, callback)
+    user_args = user_args or {}
+
+    local zig_available = select(1, check_zig())
+    if not zig_available then
+        util.Error("Zig is not available", { suggestion = "Please ensure Zig is installed and in PATH" })
+        if callback then
+            callback(false, "", "zig not available")
+        end
+        return false
+    end
+
+    local project_root = find_project_root()
+    if not project_root then
+        util.Error("build.zig not found", { suggestion = "Please run inside a Zig project directory" })
+        if callback then
+            callback(false, "", "build.zig not found")
+        end
+        return false
+    end
+
+    local job = require("plenary.job")
+
+    local args = { "build", "test" }
+    for _, a in ipairs(user_args) do
+        table.insert(args, a)
+    end
+
+    util.Info("Running test command: zig " .. table.concat(args, " "))
+
+    job:new({
+        command = "zig",
+        args = args,
+        cwd = project_root,
+        on_exit = function(j, return_val)
+            local stdout = table.concat(j:result(), "\n")
+            local stderr = table.concat(j:stderr_result(), "\n")
+            if return_val == 0 then
+                require("zig-lamp.core.core_error").notify_always("Project tests passed", vim.log.levels.INFO)
+                if callback then
+                    callback(true, stdout, stderr)
+                end
+            else
+                util.Error("Project tests failed", { error = stderr or stdout })
+                if callback then
+                    callback(false, stdout, stderr)
+                end
+            end
+        end,
+    }):start()
+
+    return true
+end
+
 --- 构建 Zig 项目
 ---@param options BuildOptions|nil 构建选项
 ---@param callback function|nil 完成回调
@@ -111,45 +227,45 @@ function M.build(options, callback)
 
     util.Info("Using Zig version: " .. (zig_version or "unknown"))
 
-    -- 查找项目根目录
+    -- Find project root
     local project_root = find_project_root()
     if not project_root then
-        util.Error("未找到 build.zig 文件", {
-            suggestion = "请确保在 Zig 项目目录中运行构建命令",
+        util.Error("build.zig not found", {
+            suggestion = "Please run the build command inside a Zig project directory",
         })
         return false
     end
 
-    util.Info("项目根目录: " .. project_root)
+    util.Info("Project root: " .. project_root)
 
-    -- 清理构建（如果需要）
+    -- Clean before build (if requested)
     if options.clean then
-        util.Info("清理构建输出...")
+        util.Info("Cleaning build outputs...")
         if not clean_build(project_root) then
-            util.Warn("清理过程中出现错误，继续构建...")
+            util.Warn("Errors occurred during clean step, continuing build...")
         end
     end
 
-    -- 准备构建命令
+    -- Prepare build command
     local args = { "build" }
 
-    -- 添加优化选项
+    -- Add optimization option
     if options.optimization then
         table.insert(args, "-Doptimize=" .. options.optimization)
     end
 
-    -- 添加目标平台
+    -- Add target platform option
     if options.target then
         table.insert(args, "-Dtarget=" .. options.target)
     end
 
-    -- 添加详细输出
+    -- Add verbose flag
     if options.verbose then
         table.insert(args, "--verbose")
     end
 
     local cmd_str = "zig " .. table.concat(args, " ")
-    util.Info("执行构建命令: " .. cmd_str)
+    util.Info("Running build command: " .. cmd_str)
 
     -- 执行构建
     if options.mode == "sync" then
@@ -160,15 +276,15 @@ function M.build(options, callback)
         })
 
         if result.code == 0 then
-            util.Info("构建成功")
+            util.Info("Build succeeded")
             if callback then
                 callback(true, result.stdout)
             end
             return true
         else
-            util.Error("构建失败", {
+            util.Error("Build failed", {
                 error = result.stderr or result.stdout,
-                suggestion = "请检查构建错误并修复",
+                suggestion = "Please check build errors and fix them",
             })
             if callback then
                 callback(false, result.stderr or result.stdout)
@@ -188,14 +304,14 @@ function M.build(options, callback)
                 local stderr = table.concat(j:stderr_result(), "\n")
 
                 if return_val == 0 then
-                    util.Info("构建成功")
+                    util.Info("Build succeeded")
                     if callback then
                         callback(true, stdout)
                     end
                 else
-                    util.Error("构建失败", {
+                    util.Error("Build failed", {
                         error = stderr or stdout,
-                        suggestion = "请检查构建错误并修复",
+                        suggestion = "Please check build errors and fix them",
                     })
                     if callback then
                         callback(false, stderr or stdout)
@@ -204,17 +320,17 @@ function M.build(options, callback)
             end,
             on_stdout = function(_, data)
                 if options.verbose and data then
-                    print("[构建] " .. data)
+                    print("[build] " .. data)
                 end
             end,
             on_stderr = function(_, data)
                 if options.verbose and data then
-                    print("[构建错误] " .. data)
+                    print("[build:error] " .. data)
                 end
             end,
         }):start()
 
-        util.Info("异步构建已启动...")
+        util.Info("Async build started...")
         return true
     end
 end
@@ -225,40 +341,140 @@ end
 ---@return boolean success 是否开始构建成功
 function M.build_library(options, callback)
     options = options or {}
-    options.verbose = true -- 库构建通常需要详细输出
+    local mode = options.mode or "async"
+    local timeout = options.timeout
+    local verbose = options.verbose == true
 
-    return M.build(options, function(success, output)
+    -- Detect plugin root (where zig-lamp build.zig resides)
+    local ok_ffi, core_ffi = pcall(require, "zig-lamp.core.core_ffi")
+    if not ok_ffi then
+        util.Error("Failed to load core_ffi for plugin root detection")
+        return false
+    end
+    local plugin_root = core_ffi.get_plugin_path()
+    if not plugin_root or plugin_root == "" then
+        util.Error("Failed to detect plugin root path")
+        return false
+    end
+
+    local zig_available = select(1, check_zig())
+    if not zig_available then
+        util.Error("Zig is not available", { suggestion = "Please ensure Zig is installed and in PATH" })
+        return false
+    end
+
+    -- Prepare args for plugin build
+    local args = { "build" }
+    if options.optimization then
+        table.insert(args, "-Doptimize=" .. options.optimization)
+    end
+    if options.target then
+        table.insert(args, "-Dtarget=" .. options.target)
+    end
+    if verbose then
+        table.insert(args, "--verbose")
+    end
+
+    util.Info("Running plugin library build: zig " .. table.concat(args, " "))
+
+    local function post_check(success, out)
         if success then
-            -- 检查库文件是否生成
-            local project_root = find_project_root()
-            if project_root then
-                local lib_name = platform.library_name("zig-lamp")
-                local lib_paths = {
-                    platform.join_path(project_root, "zig-out", "lib", lib_name),
-                    platform.join_path(project_root, "zig-out", "bin", lib_name),
-                }
-
-                local lib_found = false
-                for _, lib_path in ipairs(lib_paths) do
-                    if platform.is_file(lib_path) then
-                        util.Info("库文件已生成: " .. lib_path)
-                        lib_found = true
-                        break
-                    end
-                end
-
-                if not lib_found then
-                    util.Warn("构建成功但未找到库文件", {
-                        suggestion = "请检查 build.zig 配置",
-                    })
+            local lib_name = platform.library_name("zig-lamp")
+            local lib_paths = {
+                platform.join_path(plugin_root, "zig-out", "lib", lib_name),
+                platform.join_path(plugin_root, "zig-out", "bin", lib_name),
+            }
+            local lib_found = false
+            for _, lib_path in ipairs(lib_paths) do
+                if platform.is_file(lib_path) then
+                    util.Info("Library file generated: " .. lib_path)
+                    lib_found = true
+                    break
                 end
             end
+            if not lib_found then
+                util.Warn("Build succeeded but no library file was found", {
+                    suggestion = "Please check your build.zig outputs/installation step",
+                })
+            end
         end
-
         if callback then
-            callback(success, output)
+            callback(success, out)
         end
-    end)
+    end
+
+    if mode == "sync" then
+        local result = platform.execute("zig", args, { cwd = plugin_root, timeout = timeout })
+        if result.code == 0 then
+            require("zig-lamp.core.core_error").notify_always("Plugin library build succeeded", vim.log.levels.INFO)
+            post_check(true, result.stdout)
+            return true
+        else
+            util.Error("Plugin library build failed", { error = result.stderr or result.stdout })
+            post_check(false, result.stderr or result.stdout)
+            return false
+        end
+    else
+        local job = require("plenary.job")
+        job:new({
+            command = "zig",
+            args = args,
+            cwd = plugin_root,
+            on_exit = function(j, return_val)
+                local stdout = table.concat(j:result(), "\n")
+                local stderr = table.concat(j:stderr_result(), "\n")
+                if return_val == 0 then
+                    require("zig-lamp.core.core_error").notify_always("Plugin library build succeeded", vim.log.levels.INFO)
+                    post_check(true, stdout)
+                else
+                    util.Error("Plugin library build failed", { error = stderr or stdout })
+                    post_check(false, stderr or stdout)
+                end
+            end,
+        }):start()
+        return true
+    end
+end
+
+--- Clean build artifacts only (zig-out, zig-cache)
+---@param callback function|nil completion callback (success:boolean)
+---@return boolean success
+function M.clean(callback)
+    local project_root = find_project_root()
+    if not project_root then
+        util.Error("build.zig not found", {
+            suggestion = "Please run the clean command inside a Zig project directory",
+        })
+        if callback then
+            callback(false)
+        end
+        return false
+    end
+
+    util.Info("Cleaning build outputs...")
+
+    local zig_out = platform.join_path(project_root, "zig-out")
+    local zig_cache = platform.join_path(project_root, "zig-cache")
+    local had_any = platform.exists(zig_out) or platform.exists(zig_cache)
+
+    local ok = clean_build(project_root)
+    if ok then
+        if had_any then
+            require("zig-lamp.core.core_error").notify_always("Clean completed", vim.log.levels.INFO)
+        else
+            require("zig-lamp.core.core_error").notify_always("Nothing to clean", vim.log.levels.INFO)
+        end
+        if callback then
+            callback(true)
+        end
+        return true
+    else
+        util.Warn("Errors occurred during clean step")
+        if callback then
+            callback(false)
+        end
+        return false
+    end
 end
 
 --- 运行测试

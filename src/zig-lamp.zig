@@ -16,7 +16,8 @@ pub fn sha256Digest(
     file: fs.File,
 ) ![Sha256.digest_length]u8 {
     var sha256 = Sha256.init(.{});
-    const rdr = file.reader();
+    var buffer: [BUF_SIZE]u8 = undefined;
+    var rdr = file.reader(&buffer);
 
     var buf: [BUF_SIZE]u8 = undefined;
     var n = try rdr.read(&buf);
@@ -43,7 +44,7 @@ export fn check_shasum(file_path: [*c]const u8, shasum: [*c]const u8) bool {
     const digest = sha256Digest(file) catch return false;
 
     var hash: [64]u8 = std.mem.zeroes([64]u8);
-    _ = std.fmt.bufPrint(&hash, "{s}", .{std.fmt.fmtSliceHexLower(&digest)}) catch return false;
+    _ = std.fmt.bufPrint(&hash, "{x}", .{digest}) catch return false;
     for (0..shasum_len) |i| {
         if (shasum[i] != hash[i]) {
             return false;
@@ -56,6 +57,7 @@ const _allocator: std.mem.Allocator = std.heap.smp_allocator;
 var json: ?[:0]const u8 = null;
 
 export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
+    var buffer: [BUF_SIZE]u8 = std.mem.zeroes([BUF_SIZE]u8);
 
     // free previous json
     if (json) |_json|
@@ -68,13 +70,16 @@ export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
     defer file.close();
 
     // no need to call deinit
-    var arr = std.ArrayList(u8).init(_allocator);
+    // var arr = std.array_list.Managed(u8).init(_allocator);
+    var reader_interface = file.reader(&buffer).interface;
+
+    var arr = std.Io.Writer.Allocating.init(_allocator);
 
     zon2json.parse(
         _allocator,
-        file.reader().any(),
-        arr.writer(),
-        void{},
+        &reader_interface,
+        &arr.writer,
+        null,
         .{ .file_name = file_path[0..file_path_len] },
     ) catch return empty_str;
 

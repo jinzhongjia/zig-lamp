@@ -6,8 +6,7 @@ pub fn fmtZon(source: [:0]const u8, allocator: std.mem.Allocator) ![:0]const u8 
     var tree = try std.zig.Ast.parse(allocator, source, .zon);
     defer tree.deinit(allocator);
 
-    var buffer = std.ArrayList(u8).init(allocator);
+    const buffer = try tree.renderAlloc(allocator);
 
-    try tree.renderToArrayList(&buffer, .{});
-    return buffer.toOwnedSliceSentinel(0);
+    return try allocator.allocSentinel(u8, buffer.len + 1, 0);
 }

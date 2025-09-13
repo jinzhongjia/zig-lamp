@@ -186,7 +186,6 @@ end
 function M.setup()
     setup_syntax_highlighting()
     cmd.set_command(show_info_panel, nil, "info")
-    cmd.set_command(handle_build_command, { "async", "sync" }, "build")
 end
 
 return M

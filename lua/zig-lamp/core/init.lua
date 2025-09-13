@@ -34,7 +34,6 @@ function M.setup(user_config)
     require("zig-lamp.info").setup()
     require("zig-lamp.pkg").setup()
     require("zig-lamp.zig").setup()
-    require("zig-lamp.zls").setup()
 
     _initialized = true
     util.Info("zig-lamp initialization completed")
@@ -52,15 +51,29 @@ function M.register_commands()
         require("zig-lamp.info").show()
     end, nil, "info")
 
-    -- Package manager command
-    cmd.set_command(function()
-        require("zig-lamp.pkg").open()
-    end, nil, "pkg")
-
-    -- Build command
+    -- Build command (forward to `zig build` in current project)
     cmd.set_command(function(args)
-        local mode = args[1] or "async"
-        local timeout = args[2] and tonumber(args[2]) or nil
+        local build = require("zig-lamp.core.core_build")
+        build.build_project(args)
+    end, nil, "build")
+
+    -- Test command: forward args to `zig build test`
+    cmd.set_command(function(args)
+        local build = require("zig-lamp.core.core_build")
+        build.test_project(args)
+    end, nil, "test")
+
+    -- Clean command
+    cmd.set_command(function()
+        local build = require("zig-lamp.core.core_build")
+        build.clean()
+    end, nil, "clean")
+
+    -- Standalone command `:ZigLampBuild` (build native library)
+    vim.api.nvim_create_user_command("ZigLampBuild", function(info)
+        local fargs = info.fargs or {}
+        local mode = fargs[1] or "async"
+        local timeout = fargs[2] and tonumber(fargs[2]) or nil
 
         local build = require("zig-lamp.core.core_build")
         build.build_library({
@@ -70,34 +83,26 @@ function M.register_commands()
             verbose = false,
             clean = false,
         })
-    end, function()
-        return { "sync", "async" }
-    end, "build")
-
-    -- Test command
-    cmd.set_command(function(args)
-        local mode = args[1] or "async"
-        local build = require("zig-lamp.core.core_build")
-        build.test({
-            mode = mode,
-            optimization = "ReleaseFast",
-            verbose = false,
-            clean = false,
-        })
-    end, function()
-        return { "sync", "async" }
-    end, "test")
-
-    -- Clean command
-    cmd.set_command(function()
-        local build = require("zig-lamp.core.core_build")
-        build.build_library({
-            mode = "sync",
-            clean = true,
-            optimization = "ReleaseFast",
-            verbose = false,
-        })
-    end, nil, "clean")
+     end, {
+         nargs = "*",
+         desc = "Build zig-lamp native library",
+         complete = function(ArgLead, CmdLine, CursorPos)
+             -- 只对第一个参数提供补全
+             local args = vim.fn.split(CmdLine)
+             if #args <= 1 or (#args == 2 and ArgLead ~= "") then
+                 -- 根据当前输入进行过滤
+                 local candidates = { "async", "sync" }
+                 if ArgLead == "" then
+                     return candidates
+                 else
+                     return vim.tbl_filter(function(item)
+                         return vim.startswith(item, ArgLead)
+                     end, candidates)
+                 end
+             end
+             return {}
+         end,
+     })
 
     -- ZLS management commands
     cmd.set_command(function()

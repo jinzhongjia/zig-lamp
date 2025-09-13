@@ -686,19 +686,6 @@ local function complete_zls_uninstall()
     return M.local_zls_lists()
 end
 
--- Command setup
-
---- Register ZLS-related commands
-local function set_command()
-    cmd.set_command(M.zls_install, nil, "zls", "install")
-    cmd.set_command(cb_zls_uninstall, complete_zls_uninstall, "zls", "uninstall")
-end
-
---- Initialize the ZLS module
-function M.setup()
-    set_command()
-end
-
 -- Network operations
 
 --- Fetch ZLS metadata for a specific Zig version
