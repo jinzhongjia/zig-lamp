@@ -3,31 +3,13 @@
 const std = @import("std");
 const zon2json = @import("zon2json.zig");
 const fmtzon = @import("fmtzon.zig");
+const util = @import("util.zig");
 const fs = std.fs;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 
 // In real world, this may set to page_size, usually it's 4096.
-const BUF_SIZE = 4096;
-const empty_str = "";
 
 pub const zig2json = zon2json.parse;
-
-pub fn sha256Digest(
-    file: fs.File,
-) ![Sha256.digest_length]u8 {
-    var sha256 = Sha256.init(.{});
-    var buffer: [BUF_SIZE]u8 = undefined;
-    var rdr = file.reader(&buffer);
-
-    var buf: [BUF_SIZE]u8 = undefined;
-    var n = try rdr.read(&buf);
-    while (n != 0) {
-        sha256.update(buf[0..n]);
-        n = try rdr.read(&buf);
-    }
-
-    return sha256.finalResult();
-}
 
 pub const fmtZon = fmtzon.fmtZon;
 
@@ -41,7 +23,7 @@ export fn check_shasum(file_path: [*c]const u8, shasum: [*c]const u8) bool {
     };
     defer file.close();
 
-    const digest = sha256Digest(file) catch return false;
+    const digest = util.sha256Digest(file) catch return false;
 
     var hash: [64]u8 = std.mem.zeroes([64]u8);
     _ = std.fmt.bufPrint(&hash, "{x}", .{digest}) catch return false;
@@ -57,7 +39,7 @@ const _allocator: std.mem.Allocator = std.heap.smp_allocator;
 var json: ?[:0]const u8 = null;
 
 export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
-    var buffer: [BUF_SIZE]u8 = std.mem.zeroes([BUF_SIZE]u8);
+    var buffer: [util.BUF_SIZE]u8 = std.mem.zeroes([util.BUF_SIZE]u8);
 
     // free previous json
     if (json) |_json|
@@ -66,7 +48,7 @@ export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
     // get file path length
     const file_path_len = std.mem.len(file_path);
 
-    var file = fs.openFileAbsolute(file_path[0..file_path_len], .{ .mode = .read_only }) catch return empty_str;
+    var file = fs.openFileAbsolute(file_path[0..file_path_len], .{ .mode = .read_only }) catch return util.empty_str;
     defer file.close();
 
     // no need to call deinit
@@ -81,11 +63,11 @@ export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
         &arr.writer,
         null,
         .{ .file_name = file_path[0..file_path_len] },
-    ) catch return empty_str;
+    ) catch return util.empty_str;
 
-    json = arr.toOwnedSliceSentinel(0) catch return empty_str;
+    json = arr.toOwnedSliceSentinel(0) catch return util.empty_str;
 
-    if (json == null) return empty_str;
+    if (json == null) return util.empty_str;
 
     return json.?;
 }
@@ -103,9 +85,9 @@ export fn fmt_zon(source_code: [*c]const u8) [*c]const u8 {
 
     const source_code_len = std.mem.len(source_code);
 
-    fmtzon.fmted_source = fmtzon.fmtZon(source_code[0..source_code_len :0], _allocator) catch return empty_str;
+    fmtzon.fmted_source = fmtzon.fmtZon(source_code[0..source_code_len :0], _allocator) catch return util.empty_str;
 
-    if (fmtzon.fmted_source == null) return empty_str;
+    if (fmtzon.fmted_source == null) return util.empty_str;
 
     return fmtzon.fmted_source.?;
 }
