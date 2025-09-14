@@ -637,7 +637,7 @@ end
 
 --- Uninstall a specific ZLS version
 --- @param params table Command parameters containing ZLS version
-local function cb_zls_uninstall(params)
+function M.cb_zls_uninstall(params)
     if #params == 0 then
         util.Info("Please specify ZLS version to uninstall")
         return
@@ -678,7 +678,7 @@ end
 
 --- Complete ZLS version names for uninstall command
 --- @return table List of available ZLS versions for completion
-local function complete_zls_uninstall()
+function M.complete_zls_uninstall()
     return M.local_zls_lists()
 end
 

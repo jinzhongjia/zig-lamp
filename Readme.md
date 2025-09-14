@@ -11,7 +11,7 @@ A Neovim plugin and Zig library that streamlines Zig development with ZLS manage
 
 ## Requirements
 - Neovim 0.10+
-- Zig 0.14.0+
+- Zig 0.15.1+
 - Dependencies: `plenary.nvim` (required), `nvim-lspconfig` (needed for Neovim without built‑in LSP config; on 0.11+ the plugin prefers the built‑in `vim.lsp.config`/`vim.lsp.enable`)
 - System tools:
   - Windows: `curl`, `unzip`
@@ -141,7 +141,7 @@ Note: checksum verification is exposed to Neovim via FFI (`check_shasum`) and is
 
 ## Compatibility
 - Plugin version: `0.1.0`
-- Requires Zig: `0.14.0+`
+- Requires Zig: `0.15.1+`
 - Neovim: `0.10+` (on 0.11+ the built‑in LSP API is used)
 
 ## Troubleshooting

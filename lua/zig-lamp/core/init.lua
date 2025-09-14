@@ -106,12 +106,10 @@ function M.register_commands()
 
     -- ZLS management commands
     cmd.set_command(function()
-        require("zig-lamp.zls").install()
+        require("zig-lamp.zls").zls_install()
     end, nil, "zls", "install")
 
-    cmd.set_command(function()
-        require("zig-lamp.zls").uninstall()
-    end, nil, "zls", "uninstall")
+    cmd.set_command(require("zig-lamp.zls").cb_zls_uninstall, require("zig-lamp.zls").complete_zls_uninstall, "zls", "uninstall")
 
     cmd.set_command(function()
         local status = require("zig-lamp.zls").status()

@@ -53,7 +53,7 @@ export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
     const file_stat = file.stat() catch return util.empty_str;
     const file_content = _allocator.alloc(u8, file_stat.size) catch return util.empty_str;
     defer _allocator.free(file_content);
-    
+
     _ = file.read(file_content) catch return util.empty_str;
 
     // Create allocating writer for the output
@@ -120,7 +120,7 @@ test "get_build_zon_info" {
         // 获取绝对路径
         var path_buf: [4096]u8 = undefined;
         const abs_path = try tmp_dir.dir.realpath("test.zon", &path_buf);
-        
+
         // 添加 null 终止符
         var null_terminated_path: [4097]u8 = undefined;
         @memcpy(null_terminated_path[0..abs_path.len], abs_path);
@@ -148,7 +148,7 @@ test "get_build_zon_info" {
             \\.{
             \\    .name = "complex_package",
             \\    .version = "2.5.3",
-            \\    .minimum_zig_version = "0.14.0",
+            \\    .minimum_zig_version = "0.15.1",
             \\    .dependencies = .{
             \\        .lib1 = .{
             \\            .url = "https://example.com/lib1.tar.gz",
@@ -173,7 +173,7 @@ test "get_build_zon_info" {
 
         var path_buf: [4096]u8 = undefined;
         const abs_path = try tmp_dir.dir.realpath("complex.zon", &path_buf);
-        
+
         var null_terminated_path: [4097]u8 = undefined;
         @memcpy(null_terminated_path[0..abs_path.len], abs_path);
         null_terminated_path[abs_path.len] = 0;
@@ -201,7 +201,7 @@ test "get_build_zon_info" {
 
         var path_buf: [4096]u8 = undefined;
         const abs_path = try tmp_dir.dir.realpath("empty.zon", &path_buf);
-        
+
         var null_terminated_path: [4097]u8 = undefined;
         @memcpy(null_terminated_path[0..abs_path.len], abs_path);
         null_terminated_path[abs_path.len] = 0;
@@ -211,7 +211,7 @@ test "get_build_zon_info" {
 
         const result_len = std.mem.len(result);
         try testing.expect(result_len > 0);
-        
+
         // 空对象应该返回 "{}"
         const json_str = result[0..result_len];
         try testing.expectEqualStrings("{}", json_str);
@@ -225,7 +225,7 @@ test "get_build_zon_info" {
         null_terminated_path[non_existent.len] = 0;
 
         const result = get_build_zon_info(&null_terminated_path);
-        
+
         // 应该返回空字符串
         const result_len = std.mem.len(result);
         try testing.expectEqual(@as(usize, 0), result_len);
@@ -233,13 +233,13 @@ test "get_build_zon_info" {
 
     // 测试用例5: 连续调用（测试内存管理）
     {
-        const zon1 = 
+        const zon1 =
             \\.{
             \\    .name = "first",
             \\    .version = "1.0.0",
             \\}
         ;
-        const zon2 = 
+        const zon2 =
             \\.{
             \\    .name = "second",
             \\    .version = "2.0.0",
@@ -277,7 +277,7 @@ test "get_build_zon_info" {
 
         const result2 = get_build_zon_info(&null_terminated_path2);
         defer free_build_zon_info();
-        
+
         const result2_len = std.mem.len(result2);
         const json_str2 = result2[0..result2_len];
 
@@ -303,7 +303,7 @@ test "get_build_zon_info" {
 
         var path_buf: [4096]u8 = undefined;
         const abs_path = try tmp_dir.dir.realpath("special.zon", &path_buf);
-        
+
         var null_terminated_path: [4097]u8 = undefined;
         @memcpy(null_terminated_path[0..abs_path.len], abs_path);
         null_terminated_path[abs_path.len] = 0;
@@ -323,31 +323,31 @@ test "get_build_zon_info" {
 
 test "free_build_zon_info" {
     const testing = std.testing;
-    
+
     // 测试多次调用 free_build_zon_info 不会崩溃
     free_build_zon_info();
     free_build_zon_info();
-    
+
     // 创建临时目录和文件
     var tmp_dir = testing.tmpDir(.{});
     defer tmp_dir.cleanup();
-    
+
     const zon_content = ".{ .name = \"test\" }";
     const file = try tmp_dir.dir.createFile("test.zon", .{});
     defer file.close();
     try file.writeAll(zon_content);
-    
+
     var path_buf: [4096]u8 = undefined;
     const abs_path = try tmp_dir.dir.realpath("test.zon", &path_buf);
-    
+
     var null_terminated_path: [4097]u8 = undefined;
     @memcpy(null_terminated_path[0..abs_path.len], abs_path);
     null_terminated_path[abs_path.len] = 0;
-    
+
     // 获取信息后立即释放
     _ = get_build_zon_info(&null_terminated_path);
     free_build_zon_info();
-    
+
     // 再次释放不应该崩溃
     free_build_zon_info();
 }

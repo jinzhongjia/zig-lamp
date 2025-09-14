@@ -11,7 +11,7 @@
 
 ## 需求
 - Neovim 0.10+
-- Zig 0.14.0+
+- Zig 0.15.1+
 - 依赖：`plenary.nvim`（必需），`nvim-lspconfig`（在旧版 Neovim 无内置 LSP 时需要；0.11+ 优先使用内置 `vim.lsp.config`/`vim.lsp.enable`）
 - 系统工具：
   - Windows：`curl`、`unzip`
@@ -141,7 +141,7 @@ pub fn main() !void {
 
 ## 兼容性
 - 插件版本：`0.1.0`
-- 需要 Zig：`0.14.0+`
+- 需要 Zig：`0.15.1+`
 - Neovim：`0.10+`（0.11+ 将使用内置 LSP API）
 
 ## 故障排查

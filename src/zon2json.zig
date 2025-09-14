@@ -9,9 +9,9 @@ fn stringifyFieldName(allocator: std.mem.Allocator, ast: std.zig.Ast, idx: std.z
     if (slice[0] == '@') {
         const v = try std.zig.string_literal.parseAlloc(allocator, slice[1..]);
         defer allocator.free(v);
-        return try std.json.Stringify.valueAlloc(allocator, v, .{.whitespace = .indent_2});
+        return try std.json.Stringify.valueAlloc(allocator, v, .{ .whitespace = .indent_2 });
     }
-    return try std.json.Stringify.valueAlloc(allocator, slice, .{.whitespace = .indent_2});
+    return try std.json.Stringify.valueAlloc(allocator, slice, .{ .whitespace = .indent_2 });
 }
 
 fn stringifyValue(allocator: std.mem.Allocator, ast: std.zig.Ast, idx: std.zig.Ast.Node.Index) !?[]const u8 {
@@ -20,21 +20,21 @@ fn stringifyValue(allocator: std.mem.Allocator, ast: std.zig.Ast, idx: std.zig.A
     if (Debug) std.log.debug("value: {s}", .{slice});
     if (slice[0] == '\'') {
         switch (std.zig.parseCharLiteral(slice)) {
-            .success => |v| return try std.json.Stringify.valueAlloc(allocator, v, .{.whitespace = .indent_2}),
+            .success => |v| return try std.json.Stringify.valueAlloc(allocator, v, .{ .whitespace = .indent_2 }),
             .failure => return error.parseCharLiteralFailed,
         }
     } else if (slice[0] == '"') {
         const v = try std.zig.string_literal.parseAlloc(allocator, slice);
         defer allocator.free(v);
-        return try std.json.Stringify.valueAlloc(allocator, v, .{.whitespace = .indent_2});
+        return try std.json.Stringify.valueAlloc(allocator, v, .{ .whitespace = .indent_2 });
     }
     if (std.mem.startsWith(u8, slice, "0x")) {
         return try std.fmt.allocPrint(allocator, "\"{s}\"", .{slice});
     }
     switch (std.zig.number_literal.parseNumberLiteral(slice)) {
-        .int => |v| return try std.json.Stringify.valueAlloc(allocator, v, .{.whitespace = .indent_2}),
-        .float => |v| return try std.json.Stringify.valueAlloc(allocator, v, .{.whitespace = .indent_2}),
-        .big_int => |v| return try std.json.Stringify.valueAlloc(allocator, v, .{.whitespace = .indent_2}),
+        .int => |v| return try std.json.Stringify.valueAlloc(allocator, v, .{ .whitespace = .indent_2 }),
+        .float => |v| return try std.json.Stringify.valueAlloc(allocator, v, .{ .whitespace = .indent_2 }),
+        .big_int => |v| return try std.json.Stringify.valueAlloc(allocator, v, .{ .whitespace = .indent_2 }),
         .failure => {},
     }
     if (std.mem.eql(u8, slice, "true") or std.mem.eql(u8, slice, "false")) {
@@ -44,7 +44,7 @@ fn stringifyValue(allocator: std.mem.Allocator, ast: std.zig.Ast, idx: std.zig.A
         return try allocator.dupe(u8, slice);
     }
     // literal
-    return try std.json.Stringify.valueAlloc(allocator, slice, .{.whitespace = .indent_2});
+    return try std.json.Stringify.valueAlloc(allocator, slice, .{ .whitespace = .indent_2 });
 }
 
 fn stringify(allocator: std.mem.Allocator, writer: *std.Io.Writer, ast: std.zig.Ast, idx: std.zig.Ast.Node.Index, has_name: bool) !void {
