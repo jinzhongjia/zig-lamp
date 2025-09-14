@@ -8,8 +8,10 @@ pub fn fmtZon(source: [:0]const u8, allocator: std.mem.Allocator) ![:0]const u8 
 
     const buffer = try tree.renderAlloc(allocator);
     defer allocator.free(buffer);
-
-    return try allocator.allocSentinel(u8, buffer.len + 1, 0);
+    // Allocate a NUL-terminated buffer and copy formatted content
+    const out = try allocator.allocSentinel(u8, buffer.len, 0);
+    @memcpy(out, buffer);
+    return out;
 }
 
 test {
