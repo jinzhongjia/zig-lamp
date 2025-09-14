@@ -37,6 +37,8 @@ A Neovim plugin and Zig library that streamlines Zig development with ZLS manage
     vim.g.zig_lamp_fall_back_sys_zls = nil
     -- Extra LSP options merged into defaults
     vim.g.zig_lamp_zls_lsp_opt = {}
+    -- ZLS server settings (overrides built-in recommendations)
+    vim.g.zig_lamp_zls_settings = {}
     -- Help text color for the package panel
     vim.g.zig_lamp_pkg_help_fg = "#CF5C00"
     -- Timeout (ms) used by `zig fetch` when retrieving url hashes
@@ -80,6 +82,42 @@ Standalone:
 - Windows uses `unzip`, non‑Windows uses `tar`
 - If the native library is available, downloads are verified via checksum
 - If `zls.json` exists at project root, it is passed to ZLS automatically
+
+## ZLS Configuration
+
+### Built-in Recommended Settings
+zig-lamp now automatically applies recommended ZLS settings without requiring a `zls.json` file. Built-in settings include:
+
+- **Core features**: Snippet completions, argument placeholders, full semantic highlighting
+- **Code quality**: Style warnings, global variable highlighting  
+- **Build features**: Build-on-save diagnostics
+- **Inlay hints**: Smart type and parameter hints
+
+### Custom Configuration
+Override defaults via `vim.g.zig_lamp_zls_settings`:
+
+```lua
+-- Example: Performance optimization (large projects)
+vim.g.zig_lamp_zls_settings = {
+    zls = {
+        skip_std_references = true,  -- Skip standard library references
+        semantic_tokens = "partial",  -- Reduce semantic analysis
+    }
+}
+
+-- Example: Minimal UI (reduce distractions)
+vim.g.zig_lamp_zls_settings = {
+    zls = {
+        warn_style = false,  -- Disable style warnings
+        inlay_hints_show_variable_type_hints = false,  -- Hide variable type hints
+    }
+}
+```
+
+### Configuration Priority
+1. Project `zls.json` (highest priority)
+2. `vim.g.zig_lamp_zls_settings` user configuration
+3. zig-lamp built-in recommendations (default)
 
 ## Using zig-lamp as a Zig library
 The repo also provides a Zig module for ZON parsing/formatting.

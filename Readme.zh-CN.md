@@ -37,6 +37,8 @@
     vim.g.zig_lamp_fall_back_sys_zls = nil
     -- 传给 LSP 的可选配置（将与默认合并）
     vim.g.zig_lamp_zls_lsp_opt = {}
+    -- ZLS 服务器设置（覆盖内置推荐配置）
+    vim.g.zig_lamp_zls_settings = {}
     -- 包管理面板帮助文本颜色
     vim.g.zig_lamp_pkg_help_fg = "#CF5C00"
     -- zig fetch 获取 hash 的超时（毫秒）
@@ -80,6 +82,42 @@
 - Windows 使用 `unzip` 解压，非 Windows 使用 `tar`
 - 启用本地 FFI 库时，下载会进行校验（checksum）
 - 若项目根存在 `zls.json`，将自动传给 ZLS
+
+## ZLS 配置
+
+### 内置推荐配置
+zig-lamp 现在会自动应用推荐的 ZLS 配置，无需手动创建 `zls.json` 文件。内置配置包括：
+
+- **基础功能**：代码片段补全、参数占位符、完整语义高亮
+- **代码质量**：风格警告、全局变量高亮
+- **构建功能**：保存时自动构建
+- **Inlay Hints**：智能的类型和参数提示
+
+### 自定义配置
+可通过 `vim.g.zig_lamp_zls_settings` 覆盖默认配置：
+
+```lua
+-- 示例：性能优化配置（大项目）
+vim.g.zig_lamp_zls_settings = {
+    zls = {
+        skip_std_references = true,  -- 跳过标准库引用搜索
+        semantic_tokens = "partial",  -- 减少语义分析
+    }
+}
+
+-- 示例：精简配置（减少干扰）
+vim.g.zig_lamp_zls_settings = {
+    zls = {
+        warn_style = false,  -- 关闭风格警告
+        inlay_hints_show_variable_type_hints = false,  -- 关闭变量类型提示
+    }
+}
+```
+
+### 配置优先级
+1. 项目根目录的 `zls.json`（最高优先级）
+2. `vim.g.zig_lamp_zls_settings` 用户配置
+3. zig-lamp 内置推荐配置（默认）
 
 ## 作为 Zig 库使用
 本仓库同时提供 Zig 模块用于 ZON 解析/格式化。

@@ -415,10 +415,46 @@ end
 --- @param zls_version string|nil ZLS version to use (nil for system ZLS)
 --- @return boolean Success status
 function M.setup_lspconfig(zls_version)
+    -- Default recommended ZLS settings
+    local default_zls_settings = {
+        zls = {
+            -- 基础功能设置
+            enable_snippets = true,
+            enable_argument_placeholders = true,
+            completion_label_details = true,
+            semantic_tokens = "full",
+            prefer_ast_check_as_child_process = true,
+
+            -- 代码质量相关
+            warn_style = true,
+            highlight_global_var_declarations = true,
+
+            -- 构建相关
+            enable_build_on_save = true,
+            build_on_save_args = {},
+
+            -- Inlay hints 设置
+            inlay_hints_show_variable_type_hints = true,
+            inlay_hints_show_struct_literal_field_type = true,
+            inlay_hints_show_parameter_name = true,
+            inlay_hints_show_builtin = true,
+            inlay_hints_exclude_single_argument = true,
+            inlay_hints_hide_redundant_param_names = false,
+            inlay_hints_hide_redundant_param_names_last_token = false,
+
+            -- 性能相关（根据项目大小可调整）
+            skip_std_references = false,
+        },
+    }
+
     -- Prefer Neovim builtin LSP config API (Neovim 0.11+)
     local has_builtin = vim.lsp and vim.lsp.enable and vim.lsp.config ~= nil
 
     local lsp_opt = vim.g.zig_lamp_zls_lsp_opt or {}
+
+    -- Allow user to override ZLS settings
+    local user_zls_settings = vim.g.zig_lamp_zls_settings or {}
+    local final_settings = vim.tbl_deep_extend("force", default_zls_settings, user_zls_settings)
 
     -- Resolve ZLS command (system or managed version)
     local zls_cmd = "zls"
@@ -437,6 +473,7 @@ function M.setup_lspconfig(zls_version)
             -- Prefer project-local zls.json if present
             root_markers = { { "zls.json", "build.zig" }, ".git" },
             on_new_config = lsp_on_new_config,
+            settings = final_settings,
         }, lsp_opt)
 
         local ok_define = pcall(function()
@@ -474,6 +511,7 @@ function M.setup_lspconfig(zls_version)
         on_new_config = lsp_on_new_config,
         cmd = { zls_cmd },
         filetypes = { "zig" },
+        settings = final_settings,
     }, lsp_opt)
 
     lspconfig.zls.setup(cfg)
