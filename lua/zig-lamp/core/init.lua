@@ -83,26 +83,26 @@ function M.register_commands()
             verbose = false,
             clean = false,
         })
-     end, {
-         nargs = "*",
-         desc = "Build zig-lamp native library",
-         complete = function(ArgLead, CmdLine, CursorPos)
-             -- 只对第一个参数提供补全
-             local args = vim.fn.split(CmdLine)
-             if #args <= 1 or (#args == 2 and ArgLead ~= "") then
-                 -- 根据当前输入进行过滤
-                 local candidates = { "async", "sync" }
-                 if ArgLead == "" then
-                     return candidates
-                 else
-                     return vim.tbl_filter(function(item)
-                         return vim.startswith(item, ArgLead)
-                     end, candidates)
-                 end
-             end
-             return {}
-         end,
-     })
+    end, {
+        nargs = "*",
+        desc = "Build zig-lamp native library",
+        complete = function(ArgLead, CmdLine, CursorPos)
+            -- 只对第一个参数提供补全
+            local args = vim.fn.split(CmdLine)
+            if #args <= 1 or (#args == 2 and ArgLead ~= "") then
+                -- 根据当前输入进行过滤
+                local candidates = { "async", "sync" }
+                if ArgLead == "" then
+                    return candidates
+                else
+                    return vim.tbl_filter(function(item)
+                        return vim.startswith(item, ArgLead)
+                    end, candidates)
+                end
+            end
+            return {}
+        end,
+    })
 
     -- ZLS management commands
     cmd.set_command(function()

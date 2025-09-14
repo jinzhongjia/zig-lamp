@@ -99,6 +99,9 @@ end
 ---@return boolean success started
 function M.build_project(user_args, callback)
     user_args = user_args or {}
+    if #user_args > 0 then
+        table.remove(user_args, 1) -- Remove first arg if it's "build"
+    end
 
     local zig_available = select(1, check_zig())
     if not zig_available then
@@ -424,7 +427,10 @@ function M.build_library(options, callback)
                 local stdout = table.concat(j:result(), "\n")
                 local stderr = table.concat(j:stderr_result(), "\n")
                 if return_val == 0 then
-                    require("zig-lamp.core.core_error").notify_always("Plugin library build succeeded", vim.log.levels.INFO)
+                    require("zig-lamp.core.core_error").notify_always(
+                        "Plugin library build succeeded",
+                        vim.log.levels.INFO
+                    )
                     post_check(true, stdout)
                 else
                     util.Error("Plugin library build failed", { error = stderr or stdout })

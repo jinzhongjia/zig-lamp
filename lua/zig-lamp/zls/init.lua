@@ -431,17 +431,13 @@ function M.setup_lspconfig(zls_version)
 
     if has_builtin then
         -- Build config compatible with builtin API
-        local conf = vim.tbl_deep_extend(
-            "force",
-            {
-                cmd = { zls_cmd },
-                filetypes = { "zig" },
-                -- Prefer project-local zls.json if present
-                root_markers = { { "zls.json", "build.zig" }, ".git" },
-                on_new_config = lsp_on_new_config,
-            },
-            lsp_opt
-        )
+        local conf = vim.tbl_deep_extend("force", {
+            cmd = { zls_cmd },
+            filetypes = { "zig" },
+            -- Prefer project-local zls.json if present
+            root_markers = { { "zls.json", "build.zig" }, ".git" },
+            on_new_config = lsp_on_new_config,
+        }, lsp_opt)
 
         local ok_define = pcall(function()
             if type(vim.lsp.config) == "function" then
