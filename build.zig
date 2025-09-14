@@ -13,12 +13,7 @@ pub fn build(b: *std.Build) void {
         .optimize = optimize,
     });
 
-    const lib = if (zig_version.minor < 15) b.addSharedLibrary(.{
-        .name = "zig-lamp",
-        .root_source_file = b.path("src/zig-lamp.zig"),
-        .target = target,
-        .optimize = .ReleaseFast,
-    }) else b.addLibrary(
+    const lib = b.addLibrary(
         .{
             .name = "zig-lamp",
             .root_module = module,
