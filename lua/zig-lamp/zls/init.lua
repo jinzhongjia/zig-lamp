@@ -172,6 +172,9 @@ local function generate_src_and_dest(zls_version)
     local src_loc = vim.fs.joinpath(config.tmp_path, zls_version)
     local dest_path = path:new(ZLS_STORE_PATH, zls_version)
 
+   -- Ensure ZLS_STORE_PATH parent directory exists
+   ensure_directory(ZLS_STORE_PATH)
+
     -- Clean existing destination
     if dest_path:exists() then
         remove_path_safe(dest_path:absolute(), true)
@@ -190,6 +193,9 @@ local function extract_zls_archive(zls_version, callback)
     local src_loc, dest_loc = generate_src_and_dest(zls_version)
     local filename = get_filename()
 
+   util.Info("Extracting from: " .. src_loc)
+   util.Info("Extracting to: " .. dest_loc)
+
     local extract_cmd, extract_args
     local platform = require("zig-lamp.core.core_platform")
     if platform.is_windows then
@@ -200,16 +206,30 @@ local function extract_zls_archive(zls_version, callback)
         extract_args = { "-xvf", src_loc, "-C", dest_loc, filename }
     end
 
+   -- Debug: show the actual command being executed
+   local cmd_str = extract_cmd .. " " .. table.concat(extract_args, " ")
+   util.Info("Executing: " .. cmd_str)
+
     local _j = job:new({
         command = extract_cmd,
         args = extract_args,
-        on_exit = vim.schedule_wrap(function(_, code, signal)
+       enable_recording = true,
+        on_exit = vim.schedule_wrap(function(j, code, signal)
             if code == 0 then
                 if callback then
                     callback(true)
                 end
             else
                 util.Error("Failed to extract ZLS archive: " .. extract_cmd .. " exited with code " .. tostring(code))
+               -- Get stderr/stdout for debugging
+               local stderr = j:stderr_result()
+               local stdout = j:result()
+               if stderr and #stderr > 0 then
+                   util.Error("Extraction stderr: " .. table.concat(stderr, "\n"))
+               end
+               if stdout and #stdout > 0 then
+                   util.Error("Extraction stdout: " .. table.concat(stdout, "\n"))
+               end
                 if callback then
                     callback(false)
                 end
@@ -605,7 +625,15 @@ function M.zls_install(_)
 
     -- Extraction completion callback
     local function after_extract(zls_version)
-        return vim.schedule_wrap(function()
+        return vim.schedule_wrap(function(success)
+            if not success then
+                local error_msg = "❌ ZLS extraction failed"
+                util.Error(error_msg)
+                vim.notify(error_msg, vim.log.levels.ERROR, { title = "ZLS Installation" })
+                remove_zls_tmp(zls_version)
+                return
+            end
+ 
             remove_zls_tmp(zls_version)
 
             if verify_local_zls_version(zls_version) then

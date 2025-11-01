@@ -145,8 +145,13 @@ function M.mkdir(path, mode)
             -- Windows 不支持 mode 参数
             vim.fn.mkdir(path, "p")
         else
-            -- Unix 系统支持权限设置
-            uv.fs_mkdir(path, mode)
+            -- Unix 系统：使用 vim.fn.mkdir 来保持递归创建的一致性
+            -- 注意：vim.fn.mkdir 不完全支持 mode，但提供了跨平台一致性
+            vim.fn.mkdir(path, "p")
+            -- 设置权限（可选，如果需要精确控制）
+            if mode and mode ~= 493 then
+                pcall(uv.fs_chmod, path, mode)
+            end
         end
     end)
 
