@@ -1,77 +1,58 @@
 local health = vim.health
+local System = require("zig-lamp.system")
+local FFI = require("zig-lamp.services.ffi")
+
 local M = {}
 
+local function check_tool(name)
+    health.start(string.format("检查工具: %s", name))
+    if System.which(name) then
+        health.ok(string.format("已安装 %s", name))
+    else
+        health.error(string.format("未找到 %s", name))
+    end
+end
+
 local function check_lspconfig()
-    health.start("check lspconfig")
-    local status, _ = pcall(require, "lspconfig")
-    if status then
-        health.ok("found lspconfig")
+    health.start("检查 lspconfig (可选)")
+    local ok = pcall(require, "lspconfig")
+    if ok then
+        health.ok("已找到 lspconfig")
     else
-        health.error("not found lspconfig")
+        health.warn("未找到 lspconfig (Neovim 0.11+ 可使用内置 LSP)")
     end
 end
 
-local function check_zig()
-    health.start("check zig")
-    if vim.fn.executable("zig") == 1 then
-        health.ok("found zig")
-    else
-        health.error("not found zig")
-    end
-end
-
-local function check_curl()
-    health.start("check curl")
-    if vim.fn.executable("curl") == 1 then
-        health.ok("found curl")
-    else
-        health.error("not found curl")
-    end
-end
-
-local function check_tar()
-    local platform = require("zig-lamp.core.core_platform")
-    if not platform.is_windows then
-        health.start("check tar")
-        if platform.executable_exists("tar") then
-            health.ok("found tar")
+local function check_extract_tools()
+    local info = System.info()
+    if info.is_windows then
+        health.start("检查 unzip / powershell")
+        if System.which("unzip") or System.which("powershell") then
+            health.ok("已找到解压工具")
         else
-            health.error("not found tar")
+            health.error("未找到 unzip 或 powershell，无法解压 ZLS 压缩包")
         end
-    end
-end
-
-local function check_unzip()
-    local platform = require("zig-lamp.core.core_platform")
-    if platform.is_windows then
-        health.start("check unzip")
-        if platform.executable_exists("unzip") then
-            health.ok("found unzip")
-        else
-            health.error("not found unzip")
-        end
-    end
-end
-
-local function check_lib()
-    health.start("check dynamic library (optional)")
-    local success, zig_ffi = pcall(require, "zig-lamp.core.core_ffi")
-    if success and zig_ffi.get_lamp() then
-        health.ok("found lib - checksum verification available")
     else
-        health.warn(
-            'dynamic library not found - ZLS install will work but skip checksum verification. Run ":ZigLamp build" to enable checksum verification'
-        )
+        check_tool("tar")
     end
 end
 
-M.check = function()
-    check_zig()
-    check_curl()
-    check_unzip()
-    check_tar()
+local function check_native_lib()
+    health.start("检查 zig-lamp 本地库 (可选)")
+    if FFI.available() then
+        health.ok("已加载本地库，可启用更快的校验与格式化")
+    else
+        health.warn('未构建本地库，可执行 ":ZigLampBuild" 以启用校验与格式化加速')
+    end
+end
+
+function M.check()
+    check_tool("zig")
+    check_tool("curl")
+    check_extract_tools()
     check_lspconfig()
-    check_lib()
+    check_native_lib()
 end
 
 return M
+

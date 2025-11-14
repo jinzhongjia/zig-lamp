@@ -5,16 +5,16 @@
 ## 功能亮点
 - ZLS 管理：一键安装/卸载、自动匹配当前 Zig 版本、本地版本缓存、系统 ZLS 回退
 - 信息面板：显示插件版本、数据目录、Zig/ZLS 状态与本地可用 ZLS 版本
-- 包管理面板：可视化查看与编辑 `build.zig.zon`（路径、依赖、hash、lazy 等），支持从 URL 自动获取 hash
+- 包管理面板：可视化查看与编辑 `build.zig.zon`（路径、依赖、hash、lazy 等），支持从 URL 自动获取 hash（需要构建可选的本地 FFI 库，见下文）
 - 构建集成：提供项目构建/测试/清理命令以及插件本身动态库的一键构建
 - 原生库能力（FFI）：ZON → JSON 解析、ZON 格式化、下载校验（当启用 FFI 时）
 
 ## 需求
 - Neovim 0.10+
 - Zig 0.15.1+
-- 依赖：`plenary.nvim`（必需），`nvim-lspconfig`（在旧版 Neovim 无内置 LSP 时需要；0.11+ 优先使用内置 `vim.lsp.config`/`vim.lsp.enable`）
+- 可选：`nvim-lspconfig`（仅当 Neovim 没有内置 LSP 配置 API 时需要；0.11+ 可直接使用 `vim.lsp.config`/`vim.lsp.enable`）
 - 系统工具：
-  - Windows：`curl`、`unzip`
+  - Windows：`curl`、`unzip`（或 `powershell` 用于解压）
   - 非 Windows：`curl`、`tar`
 
 ## 安装（lazy.nvim）
@@ -25,7 +25,6 @@
   -- 可选：构建本地 FFI 库，启用更快/更稳的校验与格式化
   build = ":ZigLampBuild async",
   dependencies = {
-    "nvim-lua/plenary.nvim",
     -- 对于 Neovim < 0.11 建议加上 lspconfig
     "neovim/nvim-lspconfig",
   },
@@ -43,6 +42,9 @@
     vim.g.zig_lamp_pkg_help_fg = "#CF5C00"
     -- zig fetch 获取 hash 的超时（毫秒）
     vim.g.zig_lamp_zig_fetch_timeout = 5000
+    -- Zig 可执行文件配置
+    vim.g.zig_lamp_zig_cmd = "zig"       -- 当 zig 不在 PATH 时指定路径
+    vim.g.zig_lamp_zig_timeout = 15000   -- 执行 `zig version` 的超时（毫秒）
   end,
 }
 ```
@@ -67,12 +69,15 @@
   - 注意：如库已被当前 Neovim 进程加载，将提示重启后再构建。
 
 ### 包管理面板键位
+> 编辑功能依赖可选的本地 FFI 库。请先运行 `:ZigLampBuild`；否则面板会提示需要构建本地库。
 - `q` 退出
-- `i` 添加/编辑
-- `o` 切换依赖类型（url/path）
-- `<leader>r` 从文件重载
-- `d` 删除路径或依赖
-- `<leader>s` 保存回写到 `build.zig.zon`（自动 ZON 格式化）
+- `r` 从文件重载
+- `s` 保存回写到 `build.zig.zon`（自动格式化）
+- `e` 编辑包信息（名称/版本/最低 Zig）
+- `p` 编辑路径（逗号分隔）
+- `a` 添加或编辑依赖（支持 url/path，URL 会自动获取 hash）
+- `d` 删除依赖
+- `h` 重新获取某个 URL 依赖的 hash
 
 ## ZLS 行为与版本匹配
 - 进入 Zig 文件时，若未初始化 LSP：

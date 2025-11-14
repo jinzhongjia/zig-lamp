@@ -5,16 +5,16 @@ A Neovim plugin and Zig library that streamlines Zig development with ZLS manage
 ## Highlights
 - ZLS management: one‑command install/uninstall, auto match with the current Zig version, local cache, and system ZLS fallback
 - Info panel: display plugin version, data path, Zig/ZLS status, and locally available ZLS versions
-- Package manager panel: visual view/edit of `build.zig.zon` (paths, dependencies, hash, lazy), with automatic URL hash retrieval
+- Package manager panel: visual view/edit of `build.zig.zon` (paths, dependencies, hash, lazy), with automatic URL hash retrieval (requires the optional native library; see below)
 - Build integration: project build/test/clean commands and one‑command build for the plugin’s native library
 - Native library (FFI): ZON → JSON, ZON formatting, checksum verification (when FFI is available)
 
 ## Requirements
 - Neovim 0.10+
 - Zig 0.15.1+
-- Dependencies: `plenary.nvim` (required), `nvim-lspconfig` (needed for Neovim without built‑in LSP config; on 0.11+ the plugin prefers the built‑in `vim.lsp.config`/`vim.lsp.enable`)
+- Optional: `nvim-lspconfig` (only required when using Neovim without the built-in LSP config API; 0.11+ users can rely on `vim.lsp.config`/`vim.lsp.enable`)
 - System tools:
-  - Windows: `curl`, `unzip`
+  - Windows: `curl`, `unzip` (or `powershell` for extraction)
   - Non‑Windows: `curl`, `tar`
 
 ## Installation (lazy.nvim)
@@ -25,7 +25,6 @@ A Neovim plugin and Zig library that streamlines Zig development with ZLS manage
   -- Optional but recommended: build the local FFI lib to enable faster/safer verification & formatting
   build = ":ZigLampBuild async",
   dependencies = {
-    "nvim-lua/plenary.nvim",
     -- For Neovim < 0.11 you’ll likely want lspconfig
     "neovim/nvim-lspconfig",
   },
@@ -43,6 +42,9 @@ A Neovim plugin and Zig library that streamlines Zig development with ZLS manage
     vim.g.zig_lamp_pkg_help_fg = "#CF5C00"
     -- Timeout (ms) used by `zig fetch` when retrieving url hashes
     vim.g.zig_lamp_zig_fetch_timeout = 5000
+    -- Zig executable configuration
+    vim.g.zig_lamp_zig_cmd = "zig"       -- path to zig binary when not in PATH
+    vim.g.zig_lamp_zig_timeout = 15000   -- timeout (ms) for `zig version` checks
   end,
 }
 ```
@@ -67,12 +69,15 @@ Standalone:
   - Note: if the library is already loaded in the current Neovim process, you’ll be prompted to restart before building.
 
 ### Package manager panel keymaps
+> Editing requires the optional native library. Run `:ZigLampBuild` first; otherwise the panel will prompt you to build it.
 - `q` — quit
-- `i` — add/edit
-- `o` — toggle dependency type (url/path)
-- `<leader>r` — reload from file
-- `d` — delete path or dependency
-- `<leader>s` — save back to `build.zig.zon` (formatted automatically)
+- `r` — reload from file
+- `s` — save back to `build.zig.zon` (formatted automatically)
+- `e` — edit package metadata (name/version/minimum Zig)
+- `p` — edit paths (comma-separated)
+- `a` — add or update a dependency (supports url/path and lazy flag; url auto-fetches hash)
+- `d` — delete a dependency
+- `h` — re-fetch hash for a URL dependency
 
 ## ZLS behavior & version matching
 - On entering a Zig buffer when LSP isn’t initialized:

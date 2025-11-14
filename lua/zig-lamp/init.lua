@@ -1,136 +1,163 @@
--- zig-lamp main module entry point
--- Provides unified plugin initialization and configuration interface
+local Config = require("zig-lamp.config")
+local Log = require("zig-lamp.log")
+local CommandRegistry = require("zig-lamp.commands")
+local Build = require("zig-lamp.services.build")
+local Zls = require("zig-lamp.services.zls")
+local ZigSvc = require("zig-lamp.services.zig")
+local PkgUI = require("zig-lamp.ui.pkg")
+local InfoUI = require("zig-lamp.ui.info")
+local Health = require("zig-lamp.health")
 
 local M = {}
 
--- Lazy load core modules
-local _core = nil
-local _config = nil
+local registry = nil
+local commands_installed = false
 
---- Get core module instance
----@return table core Core module
-local function get_core()
-    if not _core then
-        _core = require("zig-lamp.core")
+local function render_status()
+    local status = Zls.status()
+    local lines = {
+        "ZLS 状态:",
+        string.format("  Zig: %s", status.zig_version or "unknown"),
+        string.format("  当前版本: %s", status.current_zls_version or "未运行"),
+        string.format("  使用系统 ZLS: %s", status.using_system_zls and "是" or "否"),
+        string.format("  是否已初始化: %s", status.lsp_initialized and "是" or "否"),
+        string.format("  系统 ZLS: %s", status.system_zls_available and (status.system_zls_version or "可用") or "不可用"),
+    }
+    if status.available_local_versions and #status.available_local_versions > 0 then
+        table.insert(lines, "  本地版本:")
+        for _, version in ipairs(status.available_local_versions) do
+            table.insert(lines, "    - " .. version)
+        end
     end
-    return _core
+    vim.notify(table.concat(lines, "\n"), vim.log.levels.INFO, { title = "ZigLamp" })
 end
 
---- Get configuration module instance
----@return table config Configuration module
-local function get_config()
-    if not _config then
-        _config = require("zig-lamp.core.core_config")
+local function register_commands()
+    if commands_installed then
+        return
     end
-    return _config
+    registry = registry or CommandRegistry.new("ZigLamp")
+
+    registry:register({
+        path = { "info" },
+        handler = InfoUI.open,
+        desc = "显示插件信息",
+    })
+
+    registry:register({
+        path = { "health" },
+        handler = Health.check,
+        desc = "运行健康检查",
+    })
+
+    registry:register({
+        path = { "pkg" },
+        handler = PkgUI.open,
+        desc = "打开包管理面板",
+    })
+
+    registry:register({
+        path = { "build" },
+        handler = function(args)
+            Build.project(args)
+        end,
+        desc = "执行 zig build",
+    })
+
+    registry:register({
+        path = { "test" },
+        handler = function(args)
+            Build.test(args)
+        end,
+        desc = "执行 zig build test",
+    })
+
+    registry:register({
+        path = { "clean" },
+        handler = Build.clean,
+        desc = "清理 zig-out 与 zig-cache",
+    })
+
+    registry:register({
+        path = { "zls", "install" },
+        handler = Zls.install,
+        desc = "安装匹配当前 Zig 的 ZLS",
+    })
+
+    registry:register({
+        path = { "zls", "uninstall" },
+        handler = Zls.uninstall,
+        complete = function()
+            return Zls.local_versions()
+        end,
+        desc = "卸载指定 ZLS 版本",
+    })
+
+    registry:register({
+        path = { "zls", "status" },
+        handler = render_status,
+        desc = "显示 ZLS 状态",
+    })
+
+    registry:install()
+    commands_installed = true
 end
 
---- Plugin setup options
----@class ZigLampConfig
----@field zls_auto_install number|nil ZLS auto-install timeout in milliseconds, nil to disable
----@field fall_back_sys_zls number|nil Whether to fallback to system ZLS, non-negative to enable
----@field zls_lsp_opt table LSP configuration options
----@field pkg_help_fg string Package manager help text color
----@field zig_fetch_timeout number Zig fetch timeout in milliseconds
+local function register_build_command()
+    local ok = pcall(vim.api.nvim_create_user_command, "ZigLampBuild", function(info)
+        local opts = {
+            optimization = info.args ~= "" and info.args or "ReleaseFast",
+        }
+        Build.plugin_library(opts)
+    end, {
+        desc = "构建 zig-lamp FFI 动态库",
+        nargs = "?",
+        complete = function()
+            return { "Debug", "ReleaseSafe", "ReleaseFast", "ReleaseSmall" }
+        end,
+    })
 
---- Default configuration
----@type ZigLampConfig
-local default_config = {
-    zls_auto_install = nil,
-    fall_back_sys_zls = nil,
-    zls_lsp_opt = {},
-    pkg_help_fg = "#CF5C00",
-    zig_fetch_timeout = 5000,
-}
-
---- Current configuration
----@type ZigLampConfig
-local current_config = vim.deepcopy(default_config)
-
---- Setup plugin configuration
----@param config ZigLampConfig|nil Configuration options
-function M.setup(config)
-    if config then
-        current_config = vim.tbl_deep_extend("force", current_config, config)
+    if not ok then
+        -- command already exists; ignore to keep configuration idempotent
+        return
     end
-
-    -- Apply global variable configuration (backward compatibility)
-    if vim.g.zig_lamp_zls_auto_install ~= nil then
-        current_config.zls_auto_install = vim.g.zig_lamp_zls_auto_install
-    end
-    if vim.g.zig_lamp_fall_back_sys_zls ~= nil then
-        current_config.fall_back_sys_zls = vim.g.zig_lamp_fall_back_sys_zls
-    end
-    if vim.g.zig_lamp_zls_lsp_opt ~= nil then
-        current_config.zls_lsp_opt = vim.g.zig_lamp_zls_lsp_opt
-    end
-    if vim.g.zig_lamp_pkg_help_fg ~= nil then
-        current_config.pkg_help_fg = vim.g.zig_lamp_pkg_help_fg
-    end
-    if vim.g.zig_lamp_zig_fetch_timeout ~= nil then
-        current_config.zig_fetch_timeout = vim.g.zig_lamp_zig_fetch_timeout
-    end
-
-    -- Initialize core modules
-    get_core().setup(current_config)
 end
 
---- Get current configuration
----@return ZigLampConfig
-function M.get_config()
-    return vim.deepcopy(current_config)
+function M.setup(opts)
+    Config.bootstrap(opts or {})
+    Log.setup(Config.get("logging"))
+    Zls.bootstrap()
+
+    register_commands()
+    register_build_command()
 end
 
---- Get plugin version information
----@return string version Version number
-function M.version()
-    return get_config().version
-end
-
---- Check plugin health status
 function M.health()
-    require("zig-lamp.health").check()
+    Health.check()
 end
 
---- Get project information
 function M.info()
-    require("zig-lamp.info").show()
+    InfoUI.open()
 end
 
---- Open package manager
 function M.pkg()
-    require("zig-lamp.pkg").open()
+    PkgUI.open()
 end
 
---- ZLS management interface
 M.zls = {
-    --- Install ZLS
-    install = function()
-        require("zig-lamp.zls").install()
-    end,
-
-    --- Uninstall ZLS
-    uninstall = function()
-        require("zig-lamp.zls").uninstall()
-    end,
-
-    --- Get ZLS status
-    status = function()
-        return require("zig-lamp.zls").status()
-    end,
+    install = Zls.install,
+    uninstall = Zls.uninstall,
+    status = Zls.status,
+    ensure_started = Zls.ensure_started,
 }
 
---- Zig tools interface
-M.zig = {
-    --- Get Zig version
-    version = function()
-        return require("zig-lamp.zig").version()
-    end,
-
-    --- Build project
-    build = function(mode, timeout)
-        require("zig-lamp.zig").build(mode, timeout)
-    end,
+M.build = {
+    project = Build.project,
+    test = Build.test,
+    clean = Build.clean,
+    plugin = Build.plugin_library,
 }
+
+M.zig = ZigSvc
 
 return M

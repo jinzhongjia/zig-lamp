@@ -1,38 +1,57 @@
--- Initialize zig-lamp plugin
--- Maintain backward compatibility while using new modular architecture
+---@diagnostic disable-next-line: undefined-global
+local vim = vim
 
--- Check dependencies
-local has_plenary, _ = pcall(require, "plenary.path")
-if not has_plenary then
-    vim.api.nvim_err_writeln("[zig-lamp] Error: plenary.nvim dependency required")
-    return
+local function truthy(value)
+    if value == nil then
+        return nil
+    end
+    if type(value) == "number" then
+        return value ~= 0
+    end
+    if type(value) == "string" then
+        return value ~= "" and value ~= "0"
+    end
+    return value == true
 end
 
--- Initialize core system
-local core = require("zig-lamp.core")
-
--- Read configuration from global variables (backward compatibility)
-local config = {}
+local config = {
+    zls = {},
+    ui = {},
+}
 
 if vim.g.zig_lamp_zls_auto_install ~= nil then
-    config.zls_auto_install = vim.g.zig_lamp_zls_auto_install
+    config.zls.auto_install = tonumber(vim.g.zig_lamp_zls_auto_install) or vim.g.zig_lamp_zls_auto_install
 end
 
 if vim.g.zig_lamp_fall_back_sys_zls ~= nil then
-    config.fall_back_sys_zls = vim.g.zig_lamp_fall_back_sys_zls ~= nil
+    config.zls.fall_back_sys = truthy(vim.g.zig_lamp_fall_back_sys_zls)
 end
 
 if vim.g.zig_lamp_zls_lsp_opt ~= nil then
-    config.zls_lsp_opt = vim.g.zig_lamp_zls_lsp_opt
+    config.zls.lsp_opt = vim.g.zig_lamp_zls_lsp_opt
 end
 
-if vim.g.zig_lamp_pkg_help_fg ~= nil then
-    config.pkg_help_fg = vim.g.zig_lamp_pkg_help_fg
+if vim.g.zig_lamp_zls_settings ~= nil then
+    config.zls.settings = vim.g.zig_lamp_zls_settings
 end
 
 if vim.g.zig_lamp_zig_fetch_timeout ~= nil then
-    config.zig_fetch_timeout = vim.g.zig_lamp_zig_fetch_timeout
+    config.zls.fetch_timeout = vim.g.zig_lamp_zig_fetch_timeout
 end
 
--- Setup plugin
+if vim.g.zig_lamp_pkg_help_fg ~= nil then
+    config.ui.pkg_help_fg = vim.g.zig_lamp_pkg_help_fg
+end
+
+if vim.g.zig_lamp_zig_cmd ~= nil then
+    config.zig = config.zig or {}
+    config.zig.cmd = vim.g.zig_lamp_zig_cmd
+end
+
+if vim.g.zig_lamp_zig_timeout ~= nil then
+    config.zig = config.zig or {}
+    config.zig.timeout = vim.g.zig_lamp_zig_timeout
+end
+
 require("zig-lamp").setup(config)
+
