@@ -1,5 +1,6 @@
 const std = @import("std");
 const fs = std.fs;
+const Io = std.Io;
 const crypto = std.crypto;
 const Sha256 = crypto.hash.sha2.Sha256;
 
@@ -8,23 +9,30 @@ pub const BUF_SIZE = 4096;
 pub const empty_str = "";
 
 pub fn sha256Digest(
-    file: fs.File,
-) ![Sha256.digest_length]u8 {
+    io: std.Io,
+    file: std.Io.File,
+) ![std.crypto.hash.sha2.Sha256.digest_length]u8 {
     var sha256 = Sha256.init(.{});
 
-    var buf: [BUF_SIZE]u8 = undefined;
+    var reader_buf: [BUF_SIZE]u8 = undefined;
+    var reader = file.reader(io, &reader_buf);
+
+    var chunk_buf: [BUF_SIZE]u8 = undefined;
     while (true) {
-        const n = try file.read(&buf);
-        if (n == 0) break;
-        sha256.update(buf[0..n]);
+        const chunk = try reader.interface.readSliceShort(&chunk_buf);
+        if (chunk == 0) break; // EOF
+        sha256.update(chunk_buf[0..chunk]);
     }
 
-    return sha256.finalResult();
+    var digest: [Sha256.digest_length]u8 = undefined;
+    sha256.final(&digest);
+    return digest;
 }
 
 test "sha256Digest" {
     const testing = std.testing;
     const allocator = testing.allocator;
+    const io = std.testing.io;
 
     // 创建临时目录和文件
     var tmp_dir = testing.tmpDir(.{});
@@ -32,10 +40,10 @@ test "sha256Digest" {
 
     // 测试用例1: 空文件
     {
-        const file = try tmp_dir.dir.createFile("empty.txt", .{ .read = true });
-        defer file.close();
+        const file = try tmp_dir.dir.createFile(io, "empty.txt", .{ .read = true });
+        defer file.close(io);
 
-        const digest = try sha256Digest(file);
+        const digest = try sha256Digest(io, file);
 
         // 空文件的 SHA256 值
         const expected_empty = "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855";
@@ -47,14 +55,16 @@ test "sha256Digest" {
 
     // 测试用例2: 包含内容的文件
     {
-        const file = try tmp_dir.dir.createFile("test.txt", .{ .read = true });
-        defer file.close();
+        const file = try tmp_dir.dir.createFile(io, "test.txt", .{ .read = true });
+        defer file.close(io);
 
         // 写入测试数据
-        try file.writeAll("Hello, World!");
-        try file.seekTo(0); // 重置文件指针到开始位置
+        try file.writeStreamingAll(io, "Hello, World!");
+        var buf: [BUF_SIZE]u8 = undefined;
+        var reader = file.reader(io, &buf);
+        try reader.seekTo(0); // 重置文件指针到开始位置
 
-        const digest = try sha256Digest(file);
+        const digest = try sha256Digest(io, file);
 
         // "Hello, World!" 的 SHA256 值
         const expected_hello = "dffd6021bb2bd5b0af676290809ec3a53191dd81c7f70a4b28688a362182986f";
@@ -66,8 +76,8 @@ test "sha256Digest" {
 
     // 测试用例3: 大文件（超过缓冲区大小）
     {
-        const file = try tmp_dir.dir.createFile("large.txt", .{ .read = true });
-        defer file.close();
+        const file = try tmp_dir.dir.createFile(io, "large.txt", .{ .read = true });
+        defer file.close(io);
 
         // 创建大于 BUF_SIZE 的数据
         const large_data = try allocator.alloc(u8, BUF_SIZE * 2 + 100);
@@ -78,10 +88,13 @@ test "sha256Digest" {
             byte.* = 'A';
         }
 
-        try file.writeAll(large_data);
-        try file.seekTo(0);
+        try file.writeStreamingAll(io, large_data);
 
-        const digest = try sha256Digest(file);
+        var buf: [BUF_SIZE]u8 = undefined;
+        var reader = file.reader(io, &buf);
+        try reader.seekTo(0);
+
+        const digest = try sha256Digest(io, file);
 
         // 验证能正确处理大文件（不验证具体值，只确保不会崩溃）
         try testing.expect(digest.len == 32);
@@ -89,14 +102,16 @@ test "sha256Digest" {
 
     // 测试用例4: 二进制数据
     {
-        const file = try tmp_dir.dir.createFile("binary.bin", .{ .read = true });
-        defer file.close();
+        const file = try tmp_dir.dir.createFile(io, "binary.bin", .{ .read = true });
+        defer file.close(io);
 
         const binary_data = [_]u8{ 0x00, 0xFF, 0x42, 0xAB, 0xCD, 0xEF };
-        try file.writeAll(&binary_data);
-        try file.seekTo(0);
+        try file.writeStreamingAll(io, &binary_data);
+        var buf: [BUF_SIZE]u8 = undefined;
+        var reader = file.reader(io, &buf);
+        try reader.seekTo(0);
 
-        const digest = try sha256Digest(file);
+        const digest = try sha256Digest(io, file);
 
         // 验证二进制数据的处理
         try testing.expect(digest.len == 32);
