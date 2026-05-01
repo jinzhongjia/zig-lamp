@@ -5,6 +5,7 @@ const zon2json = @import("zon2json.zig");
 const fmtzon = @import("fmtzon.zig");
 const util = @import("util.zig");
 const fs = std.fs;
+const Io = std.Io;
 const Sha256 = std.crypto.hash.sha2.Sha256;
 
 // In real world, this may set to page_size, usually it's 4096.
@@ -13,17 +14,20 @@ pub const zig2json = zon2json.parse;
 
 pub const fmtZon = fmtzon.fmtZon;
 
+var threaded = std.Io.Threaded.init_single_threaded;
+const io = threaded.io();
+
 // this function for ffi call
 export fn check_shasum(file_path: [*c]const u8, shasum: [*c]const u8) bool {
     const file_path_len = std.mem.len(file_path);
     const shasum_len = std.mem.len(shasum);
 
-    const file = fs.openFileAbsolute(file_path[0..file_path_len], .{}) catch {
+    const file = Io.Dir.openFileAbsolute(io, file_path[0..file_path_len], .{}) catch {
         return false;
     };
-    defer file.close();
+    defer file.close(io);
 
-    const digest = util.sha256Digest(file) catch return false;
+    const digest = util.sha256Digest(io, file) catch return false;
 
     var hash: [64]u8 = std.mem.zeroes([64]u8);
     _ = std.fmt.bufPrint(&hash, "{x}", .{digest}) catch return false;
@@ -46,15 +50,16 @@ export fn get_build_zon_info(file_path: [*c]const u8) [*c]const u8 {
     // get file path length
     const file_path_len = std.mem.len(file_path);
 
-    var file = fs.openFileAbsolute(file_path[0..file_path_len], .{ .mode = .read_only }) catch return util.empty_str;
-    defer file.close();
+    var file = Io.Dir.openFileAbsolute(io, file_path[0..file_path_len], .{ .mode = .read_only }) catch return util.empty_str;
+    defer file.close(io);
 
     // Get file metadata to know the size
-    const file_stat = file.stat() catch return util.empty_str;
+    const file_stat = file.stat(io) catch return util.empty_str;
     const file_content = _allocator.alloc(u8, file_stat.size) catch return util.empty_str;
     defer _allocator.free(file_content);
+    const bufs = [_][]u8{file_content};
 
-    _ = file.read(file_content) catch return util.empty_str;
+    _ = file.readStreaming(io, &bufs) catch return util.empty_str;
 
     // Create allocating writer for the output
     var output = std.Io.Writer.Allocating.init(_allocator);
@@ -89,7 +94,6 @@ export fn free_build_zon_info() void {
 test "get_build_zon_info" {
     const testing = std.testing;
     const allocator = testing.allocator;
-
     // 创建临时目录
     var tmp_dir = testing.tmpDir(.{});
     defer tmp_dir.cleanup();
@@ -113,13 +117,13 @@ test "get_build_zon_info" {
         ;
 
         // 创建测试文件
-        const file = try tmp_dir.dir.createFile("test.zon", .{});
-        defer file.close();
-        try file.writeAll(zon_content);
+        const file = try tmp_dir.dir.createFile(io, "test.zon", .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, zon_content);
 
         // 获取绝对路径
-        var path_buf: [4096]u8 = undefined;
-        const abs_path = try tmp_dir.dir.realpath("test.zon", &path_buf);
+        const abs_path = try tmp_dir.dir.realPathFileAlloc(io, "test.zon", allocator);
+        defer allocator.free(abs_path);
 
         // 添加 null 终止符
         var null_terminated_path: [4097]u8 = undefined;
@@ -167,12 +171,12 @@ test "get_build_zon_info" {
             \\}
         ;
 
-        const file = try tmp_dir.dir.createFile("complex.zon", .{});
-        defer file.close();
-        try file.writeAll(complex_zon);
+        const file = try tmp_dir.dir.createFile(io, "complex.zon", .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, complex_zon);
 
-        var path_buf: [4096]u8 = undefined;
-        const abs_path = try tmp_dir.dir.realpath("complex.zon", &path_buf);
+        const abs_path = try tmp_dir.dir.realPathFileAlloc(io, "complex.zon", allocator);
+        defer allocator.free(abs_path);
 
         var null_terminated_path: [4097]u8 = undefined;
         @memcpy(null_terminated_path[0..abs_path.len], abs_path);
@@ -195,12 +199,12 @@ test "get_build_zon_info" {
     {
         const empty_zon = ".{}";
 
-        const file = try tmp_dir.dir.createFile("empty.zon", .{});
-        defer file.close();
-        try file.writeAll(empty_zon);
+        const file = try tmp_dir.dir.createFile(io, "empty.zon", .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, empty_zon);
 
-        var path_buf: [4096]u8 = undefined;
-        const abs_path = try tmp_dir.dir.realpath("empty.zon", &path_buf);
+        const abs_path = try tmp_dir.dir.realPathFileAlloc(io, "empty.zon", allocator);
+        defer allocator.free(abs_path);
 
         var null_terminated_path: [4097]u8 = undefined;
         @memcpy(null_terminated_path[0..abs_path.len], abs_path);
@@ -247,18 +251,18 @@ test "get_build_zon_info" {
         ;
 
         // 创建第一个文件
-        const file1 = try tmp_dir.dir.createFile("first.zon", .{});
-        defer file1.close();
-        try file1.writeAll(zon1);
+        const file1 = try tmp_dir.dir.createFile(io, "first.zon", .{});
+        defer file1.close(io);
+        try file1.writeStreamingAll(io, zon1);
 
         // 创建第二个文件
-        const file2 = try tmp_dir.dir.createFile("second.zon", .{});
-        defer file2.close();
-        try file2.writeAll(zon2);
+        const file2 = try tmp_dir.dir.createFile(io, "second.zon", .{});
+        defer file2.close(io);
+        try file2.writeStreamingAll(io, zon2);
 
         // 第一次调用
-        var path_buf1: [4096]u8 = undefined;
-        const abs_path1 = try tmp_dir.dir.realpath("first.zon", &path_buf1);
+        const abs_path1 = try tmp_dir.dir.realPathFileAlloc(io, "first.zon", allocator);
+        defer allocator.free(abs_path1);
         var null_terminated_path1: [4097]u8 = undefined;
         @memcpy(null_terminated_path1[0..abs_path1.len], abs_path1);
         null_terminated_path1[abs_path1.len] = 0;
@@ -269,8 +273,8 @@ test "get_build_zon_info" {
         defer allocator.free(json_str1);
 
         // 第二次调用（应该自动释放第一次的内存）
-        var path_buf2: [4096]u8 = undefined;
-        const abs_path2 = try tmp_dir.dir.realpath("second.zon", &path_buf2);
+        const abs_path2 = try tmp_dir.dir.realPathFileAlloc(io, "second.zon", allocator);
+        defer allocator.free(abs_path2);
         var null_terminated_path2: [4097]u8 = undefined;
         @memcpy(null_terminated_path2[0..abs_path2.len], abs_path2);
         null_terminated_path2[abs_path2.len] = 0;
@@ -297,12 +301,12 @@ test "get_build_zon_info" {
             \\}
         ;
 
-        const file = try tmp_dir.dir.createFile("special.zon", .{});
-        defer file.close();
-        try file.writeAll(special_zon);
+        const file = try tmp_dir.dir.createFile(io, "special.zon", .{});
+        defer file.close(io);
+        try file.writeStreamingAll(io, special_zon);
 
-        var path_buf: [4096]u8 = undefined;
-        const abs_path = try tmp_dir.dir.realpath("special.zon", &path_buf);
+        const abs_path = try tmp_dir.dir.realPathFileAlloc(io, "special.zon", allocator);
+        defer allocator.free(abs_path);
 
         var null_terminated_path: [4097]u8 = undefined;
         @memcpy(null_terminated_path[0..abs_path.len], abs_path);
@@ -323,6 +327,7 @@ test "get_build_zon_info" {
 
 test "free_build_zon_info" {
     const testing = std.testing;
+    const allocator = testing.allocator;
 
     // 测试多次调用 free_build_zon_info 不会崩溃
     free_build_zon_info();
@@ -333,12 +338,12 @@ test "free_build_zon_info" {
     defer tmp_dir.cleanup();
 
     const zon_content = ".{ .name = \"test\" }";
-    const file = try tmp_dir.dir.createFile("test.zon", .{});
-    defer file.close();
-    try file.writeAll(zon_content);
+    const file = try tmp_dir.dir.createFile(io, "test.zon", .{});
+    defer file.close(io);
+    try file.writeStreamingAll(io, zon_content);
 
-    var path_buf: [4096]u8 = undefined;
-    const abs_path = try tmp_dir.dir.realpath("test.zon", &path_buf);
+    const abs_path = try tmp_dir.dir.realPathFileAlloc(io, "test.zon", allocator);
+    defer allocator.free(abs_path);
 
     var null_terminated_path: [4097]u8 = undefined;
     @memcpy(null_terminated_path[0..abs_path.len], abs_path);
