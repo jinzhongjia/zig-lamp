@@ -152,7 +152,7 @@ test "get_build_zon_info" {
             \\.{
             \\    .name = "complex_package",
             \\    .version = "2.5.3",
-            \\    .minimum_zig_version = "0.15.1",
+            \\    .minimum_zig_version = "0.16.0",
             \\    .dependencies = .{
             \\        .lib1 = .{
             \\            .url = "https://example.com/lib1.tar.gz",

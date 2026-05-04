@@ -22,7 +22,7 @@ test {
         \\     .name = .zig_lamp,
         \\     .version = "0.0.3",
         \\     .fingerprint = 0x519db185c03fa148,
-        \\     .minimum_zig_version = "0.15.1",
+        \\     .minimum_zig_version = "0.16.0",
         \\     .dependencies = .{},
         \\     .paths = .{
         \\         "build.zig",

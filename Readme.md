@@ -11,7 +11,7 @@ A Neovim plugin and Zig library that streamlines Zig development with ZLS manage
 
 ## Requirements
 - Neovim 0.10+
-- Zig 0.15.1+
+- Zig 0.16.0+
 - Dependencies: `plenary.nvim` (required), `nvim-lspconfig` (needed for Neovim without built‑in LSP config; on 0.11+ the plugin prefers the built‑in `vim.lsp.config`/`vim.lsp.enable`)
 - System tools:
   - Windows: `curl`, `unzip`
@@ -89,7 +89,7 @@ Standalone:
 zig-lamp now automatically applies recommended ZLS settings without requiring a `zls.json` file. Built-in settings include:
 
 - **Core features**: Snippet completions, argument placeholders, full semantic highlighting
-- **Code quality**: Style warnings, global variable highlighting  
+- **Code quality**: Style warnings, global variable highlighting
 - **Build features**: Build-on-save diagnostics
 - **Inlay hints**: Smart type and parameter hints
 
@@ -179,7 +179,7 @@ Note: checksum verification is exposed to Neovim via FFI (`check_shasum`) and is
 
 ## Compatibility
 - Plugin version: `0.1.0`
-- Requires Zig: `0.15.1+`
+- Requires Zig: `0.16.0+`
 - Neovim: `0.10+` (on 0.11+ the built‑in LSP API is used)
 
 ## Troubleshooting
