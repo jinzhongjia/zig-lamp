@@ -1,5 +1,9 @@
 # zig-lamp
 
+> [!WARNING]
+> **本仓库已不再维护，并且已归档。**
+> 如需在 Neovim 中获得 Zig 支持，推荐使用 [zig-analyzer.nvim](https://github.com/jinzhongjia/zig-analyzer.nvim)。
+
 一个为 Zig 打造的 Neovim 插件 + Zig 原生库，提供 ZLS 管理、build.zig.zon 解析/格式化与便捷的构建集成。
 
 ## 功能亮点

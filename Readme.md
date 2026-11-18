@@ -1,5 +1,9 @@
 # zig-lamp
 
+> [!WARNING]
+> **This repository is no longer maintained and archived.**
+> If you need Zig support in Neovim, please use [zig-analyzer.nvim](https://github.com/jinzhongjia/zig-analyzer.nvim) instead.
+
 A Neovim plugin and Zig library that streamlines Zig development with ZLS management, build.zig.zon parsing/formatting, and convenient build integration.
 
 ## Highlights
